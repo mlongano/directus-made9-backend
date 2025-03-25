@@ -1,0 +1,43 @@
+services:
+  directus:
+    image: directus/directus:latest
+    ports:
+      - "8055:8055"
+    environment:
+      KEY: '${KEY}'
+      SECRET: '${SECRET}'
+      DB_CLIENT: 'pg'
+      DB_HOST: 'postgres'
+      DB_PORT: '5432'
+      DB_DATABASE: '${POSTGRES_DB}'
+      DB_USER: '${POSTGRES_USER}'
+      DB_PASSWORD: '${POSTGRES_PASSWORD}'
+      ADMIN_EMAIL: '${ADMIN_EMAIL}'
+      ADMIN_PASSWORD: '${ADMIN_PASSWORD}'
+      # Migration settings
+      MIGRATIONS_DIRECTORY: '/directus/migrations'
+      MIGRATIONS_AUTO_RUN: 'true'
+    volumes:
+      - ./uploads:/directus/uploads
+      - ./extensions:/directus/extensions
+      - ./migrations:/directus/migrations
+      - ./seeds:/directus/seeds  # Optional: only if using separate seeds
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  postgres:
+    image: postgis/postgis:15-3.3
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init-postgis.sql:/docker-entrypoint-initdb.d/init-postgis.sql
+    environment:
+      POSTGRES_DB: '${POSTGRES_DB}'
+      POSTGRES_USER: '${POSTGRES_USER}'
+      POSTGRES_PASSWORD: '${POSTGRES_PASSWORD}'
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
