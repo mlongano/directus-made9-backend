@@ -9,9 +9,10 @@ export async function up(knex) {
     table.uuid("logo").references("id").inTable("directus_files");
     table.string("website_url");
     table.text("description");
-    table.text("detailed_info", "longtext");
+    table.text("detailed_info", "longtext"); // Note: 'longtext' is MySQL specific, consider 'text' for cross-db or if PG only.
     table.string("address");
-    table.json("geo_location");
+    // Changed to jsonb for potentially better performance/indexing in PostgreSQL
+    table.jsonb("geo_location");
     table.boolean("main_campus").defaultTo(true);
     table.uuid("parent_school").references("id").inTable("schools").nullable();
     table.boolean("canteen").defaultTo(false);
@@ -41,11 +42,12 @@ export async function up(knex) {
   });
 
   // Add fields to Directus
+  // Explicitly using JSON.stringify() for options, display_options, conditions where they are objects/arrays
   await knex("directus_fields").insert([
     {
       collection: "schools",
       field: "id",
-      special: ["uuid"],
+      special: JSON.stringify(["uuid"]), // Stringify array
       interface: "input",
       options: null,
       display: "raw",
@@ -81,15 +83,17 @@ export async function up(knex) {
     {
       collection: "schools",
       field: "type",
-      special: ["m2o"],
+      special: JSON.stringify(["m2o"]), // Stringify array
       interface: "select-dropdown-m2o",
-      options: {
+      options: JSON.stringify({
+        // Stringify object
         template: "{{name}}",
-      },
+      }),
       display: "related-values",
-      display_options: {
+      display_options: JSON.stringify({
+        // Stringify object
         template: "{{name}}",
-      },
+      }),
       readonly: false,
       hidden: false,
       sort: 3,
@@ -103,11 +107,12 @@ export async function up(knex) {
     {
       collection: "schools",
       field: "logo",
-      special: ["file"],
+      special: JSON.stringify(["file"]), // Stringify array
       interface: "file-image",
-      options: {
+      options: JSON.stringify({
+        // Stringify object
         crop: false,
-      },
+      }),
       display: "image",
       display_options: null,
       readonly: false,
@@ -125,9 +130,10 @@ export async function up(knex) {
       field: "website_url",
       special: null,
       interface: "input",
-      options: {
+      options: JSON.stringify({
+        // Stringify object
         placeholder: "https://www.example.com",
-      },
+      }),
       display: "raw",
       display_options: null,
       readonly: false,
@@ -161,9 +167,10 @@ export async function up(knex) {
     {
       collection: "schools",
       field: "detailed_info",
-      special: ["wysiwyg"],
+      special: JSON.stringify(["wysiwyg"]), // Stringify array
       interface: "input-rich-text-html",
-      options: {
+      options: JSON.stringify({
+        // Stringify object
         toolbar: [
           "bold",
           "italic",
@@ -179,7 +186,7 @@ export async function up(knex) {
           "link",
           "table",
         ],
-      },
+      }),
       display: "formatted-value",
       display_options: null,
       readonly: false,
@@ -213,11 +220,13 @@ export async function up(knex) {
     {
       collection: "schools",
       field: "geo_location",
-      special: ["json"],
+      // Special should define the data type behavior for Directus, JSON is appropriate
+      special: JSON.stringify(["json"]),
       interface: "input-map",
-      options: {
+      options: JSON.stringify({
+        // Stringify object
         geometryType: "Point",
-      },
+      }),
       display: "map",
       display_options: null,
       readonly: false,
@@ -233,7 +242,7 @@ export async function up(knex) {
     {
       collection: "schools",
       field: "main_campus",
-      special: ["boolean"],
+      special: JSON.stringify(["boolean"]), // Stringify array
       interface: "boolean",
       options: null,
       display: "boolean",
@@ -251,27 +260,30 @@ export async function up(knex) {
     {
       collection: "schools",
       field: "parent_school",
-      special: ["m2o"],
+      special: JSON.stringify(["m2o"]), // Stringify array
       interface: "select-dropdown-m2o",
-      options: {
+      options: JSON.stringify({
+        // Stringify object
         template: "{{name}}",
         filter: {
           main_campus: {
             _eq: true,
           },
         },
-      },
+      }),
       display: "related-values",
-      display_options: {
+      display_options: JSON.stringify({
+        // Stringify object
         template: "{{name}}",
-      },
+      }),
       readonly: false,
       hidden: false,
       sort: 11,
       width: "half",
       translations: null,
       note: "Parent school (if this is a branch)",
-      conditions: [
+      conditions: JSON.stringify([
+        // Stringify array of objects
         {
           name: "Hide if main campus",
           rule: {
@@ -282,14 +294,14 @@ export async function up(knex) {
           hidden: true,
           options: {},
         },
-      ],
+      ]),
       required: false,
       group: null,
     },
     {
       collection: "schools",
       field: "canteen",
-      special: ["boolean"],
+      special: JSON.stringify(["boolean"]), // Stringify array
       interface: "boolean",
       options: null,
       display: "boolean",
@@ -307,7 +319,7 @@ export async function up(knex) {
     {
       collection: "schools",
       field: "boarding",
-      special: ["boolean"],
+      special: JSON.stringify(["boolean"]), // Stringify array
       interface: "boolean",
       options: null,
       display: "boolean",
@@ -327,9 +339,10 @@ export async function up(knex) {
       field: "email",
       special: null,
       interface: "input",
-      options: {
+      options: JSON.stringify({
+        // Stringify object
         placeholder: "email@example.com",
-      },
+      }),
       display: "raw",
       display_options: null,
       readonly: false,
@@ -347,9 +360,10 @@ export async function up(knex) {
       field: "phone",
       special: null,
       interface: "input",
-      options: {
+      options: JSON.stringify({
+        // Stringify object
         placeholder: "+39 012 3456789",
-      },
+      }),
       display: "raw",
       display_options: null,
       readonly: false,
@@ -365,11 +379,11 @@ export async function up(knex) {
     {
       collection: "schools",
       field: "created_at",
-      special: ["date-created"],
+      special: JSON.stringify(["date-created"]), // Stringify array
       interface: "datetime",
       options: null,
       display: "datetime",
-      display_options: { relative: true },
+      display_options: JSON.stringify({ relative: true }), // Stringify object
       readonly: true,
       hidden: true,
       sort: 16,
@@ -383,11 +397,11 @@ export async function up(knex) {
     {
       collection: "schools",
       field: "updated_at",
-      special: ["date-updated"],
+      special: JSON.stringify(["date-updated"]), // Stringify array
       interface: "datetime",
       options: null,
       display: "datetime",
-      display_options: { relative: true },
+      display_options: JSON.stringify({ relative: true }), // Stringify object
       readonly: true,
       hidden: true,
       sort: 17,
@@ -401,36 +415,49 @@ export async function up(knex) {
     {
       collection: "schools",
       field: "user_created",
-      special: ["user-created"],
+      special: JSON.stringify(["user-created"]), // Stringify array
       interface: "select-dropdown-m2o",
-      options: {
+      options: JSON.stringify({
+        // Stringify object
         template: "{{avatar.$thumbnail}} {{first_name}} {{last_name}}",
-      },
+      }),
       display: "user",
+      display_options: null,
       readonly: true,
       hidden: true,
       sort: 18,
       width: "half",
       required: false,
+      group: null,
+      translations: null,
+      note: null,
+      conditions: null,
     },
     {
       collection: "schools",
       field: "user_updated",
-      special: ["user-updated"],
+      special: JSON.stringify(["user-updated"]), // Stringify array
       interface: "select-dropdown-m2o",
-      options: {
+      options: JSON.stringify({
+        // Stringify object
         template: "{{avatar.$thumbnail}} {{first_name}} {{last_name}}",
-      },
+      }),
       display: "user",
+      display_options: null,
       readonly: true,
       hidden: true,
       sort: 19,
       width: "half",
       required: false,
+      group: null,
+      translations: null,
+      note: null,
+      conditions: null,
     },
   ]);
 
   // Pre-populate with the schools from the requirements
+  // This part remains unchanged as it inserts into the 'schools' table, not 'directus_fields'
   await knex("schools").insert([
     {
       name: "Liceo Antonio Rosmini",
@@ -480,6 +507,7 @@ export async function up(knex) {
   ]);
 }
 
+// The down function remains the same as the original file
 export async function down(knex) {
   // Remove the fields from Directus
   await knex("directus_fields").where("collection", "schools").delete();
