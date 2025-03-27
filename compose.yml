@@ -18,6 +18,10 @@ services:
       # Migration settings
       MIGRATIONS_DIRECTORY: '/directus/migrations'
       MIGRATIONS_AUTO_RUN: 'true'
+      # Specify that we're using ES modules
+      MIGRATIONS_MODULE_FORMAT: 'esm'  # This is the key part for ES modules
+      NODE_OPTIONS: '--experimental-specifier-resolution=node'
+
     volumes:
       - ./uploads:/directus/uploads
       - ./extensions:/directus/extensions
