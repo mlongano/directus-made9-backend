@@ -1,9 +1,12 @@
 services:
   directus:
-    image: directus/directus:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.directus
     ports:
       - "8055:8055"
     environment:
+
       PUBLIC_URL: '${PUBLIC_URL}'
       KEY: '${KEY}'
       SECRET: '${SECRET}'
@@ -15,6 +18,7 @@ services:
       DB_PASSWORD: '${POSTGRES_PASSWORD}'
       ADMIN_EMAIL: '${ADMIN_EMAIL}'
       ADMIN_PASSWORD: '${ADMIN_PASSWORD}'
+      WEBSOCKETS_ENABLED: "true"
       # Migration settings
       MIGRATIONS_DIRECTORY: '/directus/migrations'
       MIGRATIONS_AUTO_RUN: 'true'
@@ -23,12 +27,16 @@ services:
       NODE_OPTIONS: '--experimental-specifier-resolution=node'
 
     volumes:
+      - ./database:/directus/database
       - ./uploads:/directus/uploads
       - ./extensions:/directus/extensions
       - ./migrations:/directus/migrations
       - ./seeds:/directus/seeds  # Optional: only if using separate seeds
+      - ./knexfile.js:/directus/knexfile.js
+      - ./knexfile-sqlite.js:/directus/knexfile-sqlite.js
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
   postgres:
@@ -40,6 +48,11 @@ services:
       POSTGRES_DB: '${POSTGRES_DB}'
       POSTGRES_USER: '${POSTGRES_USER}'
       POSTGRES_PASSWORD: '${POSTGRES_PASSWORD}'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     ports:
       - "5432:5432"
     restart: unless-stopped
