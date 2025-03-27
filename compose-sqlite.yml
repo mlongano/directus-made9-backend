@@ -1,0 +1,34 @@
+services:
+  directus:
+    build:
+      context: .
+      dockerfile: Dockerfile.directus
+    ports:
+      - "8055:8055"
+    environment:
+      DB_CLIENT: "sqlite3"
+      DB_FILENAME: "/directus/database/data.db"
+      WEBSOCKETS_ENABLED: "true"
+
+      PUBLIC_URL: '${PUBLIC_URL}'
+      KEY: '${KEY}'
+      SECRET: '${SECRET}'
+      ADMIN_EMAIL: '${ADMIN_EMAIL}'
+      ADMIN_PASSWORD: '${ADMIN_PASSWORD}'
+      # Migration settings
+      MIGRATIONS_DIRECTORY: '/directus/migrations'
+      MIGRATIONS_AUTO_RUN: 'true'
+      # Specify that we're using ES modules
+      # MIGRATIONS_MODULE_FORMAT: 'esm'  # This is the key part for ES modules
+      # NODE_OPTIONS: '--experimental-specifier-resolution=node'
+
+    volumes:
+      - ./database:/directus/database
+      - ./uploads:/directus/uploads
+      - ./extensions:/directus/extensions
+      - ./migrations:/directus/migrations
+      - ./seeds:/directus/seeds  # Optional: only if using separate seeds
+      - ./knexfile.js:/directus/knexfile.js
+      - ./knexfile-sqlite.js:/directus/knexfile-sqlite.js
+    restart: unless-stopped
+

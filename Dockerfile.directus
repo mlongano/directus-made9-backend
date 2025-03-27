@@ -1,0 +1,17 @@
+# Dockerfile.directus
+FROM directus/directus:11.6.0
+USER root
+RUN apk update && \
+    apk add --no-cache libspatialite libspatialite-dev python3 python3-dev py3-setuptools make g++ && \
+    ln -sf /usr/bin/python3 /usr/bin/python && \
+    rm -rf /var/cache/apk/*
+
+RUN corepack enable \
+  && corepack prepare pnpm@8.9.0 --activate
+
+USER node
+
+WORKDIR /directus
+RUN pnpm add knex sqlite3 pg dotenv
+# Enable SQLite extension loading
+ENV SQLITE_ENABLE_LOAD_EXTENSION=1
