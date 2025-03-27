@@ -1,78 +1,100 @@
 // seeds/01_import_rovereto_schools.js
 
 export async function seed(knex) {
-  // Get the school types and educational paths to link with
+  console.log("Starting seed: 01_import_rovereto_schools...");
+
+  // Get existing reference data
+  console.log("Fetching school types and educational paths...");
   const schoolTypes = await knex("school_types").select("id", "name");
   const educationalPaths = await knex("educational_paths").select("id", "name");
 
-  // Create type ID maps for easy lookup
+  // Create maps for easy lookup (case-insensitive keys)
   const typeIdMap = schoolTypes.reduce((map, type) => {
     map[type.name.toLowerCase()] = type.id;
     return map;
   }, {});
 
-  // Create path ID maps for easy lookup (case insensitive for flexible matching)
   const pathIdMap = educationalPaths.reduce((map, path) => {
     map[path.name.toLowerCase()] = path.id;
     return map;
   }, {});
-
-  // Define mapping functions to classify schools by type
-  const determineSchoolType = (name, indirizzi) => {
-    const nameLower = name.toLowerCase();
-
-    if (nameLower.includes("liceo")) {
-      return typeIdMap["liceo"];
-    } else if (
-      nameLower.includes("istituto tecnico") ||
-      nameLower.includes("itet")
-    ) {
-      return typeIdMap["istituto tecnico"];
-    } else if (
-      nameLower.includes("istituto professionale") ||
-      nameLower.includes("ifp")
-    ) {
-      return typeIdMap["istituto professionale"];
-    } else if (
-      nameLower.includes("cfp") ||
-      nameLower.includes("formazione professionale")
-    ) {
-      return typeIdMap["scuola professionale"];
-    } else {
-      // Default to technical institute if unsure
-      return typeIdMap["istituto tecnico"];
-    }
-  };
+  console.log("Reference data fetched and mapped.");
 
   // Helper function to find path ID based on name (fuzzy match)
   const findEducationalPathId = (pathName) => {
     const lowerName = pathName.toLowerCase();
 
-    // Direct match first
+    // Direct match first (case-insensitive via pathIdMap keys)
     if (pathIdMap[lowerName]) {
       return pathIdMap[lowerName];
     }
 
-    // Try to find partial matches
+    // Improved Fuzzy Matching based on logged warnings and likely mappings:
+    // Specific Professional / Service paths
+    if (
+      lowerName.includes("panificazione") ||
+      lowerName.includes("pasticceria") ||
+      lowerName.includes("cucina") ||
+      lowerName.includes("sala e bar")
+    ) {
+      return pathIdMap["alberghiero"]; // Map to Alberghiero
+    }
+    if (
+      lowerName.includes("servizi per la sanità") ||
+      lowerName.includes("assistenza sociale")
+    ) {
+      return pathIdMap["scienze umane"]; // Map to Scienze Umane (or create a 'Servizi Sociali' type?)
+    }
+    if (
+      lowerName.includes("servizi d'impresa") ||
+      lowerName.includes("servizi di vendita")
+    ) {
+      return pathIdMap["economico"]; // Map to Economico
+    }
+
+    // Art / Design related
+    if (
+      lowerName.includes("grafica") ||
+      lowerName.includes("design") ||
+      lowerName.includes("audiovisivo") ||
+      lowerName.includes("multimedia")
+    ) {
+      return pathIdMap["artistico"]; // Map to Artistico
+    }
+
+    // Technical / Industrial related
+    if (
+      lowerName.includes("meccatronico") ||
+      lowerName.includes("meccanico") || // <-- ADDED THIS CHECK
+      lowerName.includes("meccatronica") ||
+      lowerName.includes("elettrico") ||
+      lowerName.includes("elettronica") ||
+      lowerName.includes("automazione") ||
+      lowerName.includes("carpenteria")
+    ) {
+      return pathIdMap["industriale"]; // Map to Industriale
+    }
+    if (lowerName.includes("informatica")) {
+      return pathIdMap["tecnologico"]; // Map Informatica specifically to Tecnologico
+    }
+
+    // Original Fuzzy Matching (keep as fallbacks)
     if (lowerName.includes("classi")) return pathIdMap["classico"];
     if (lowerName.includes("scienti")) return pathIdMap["scientifico"];
     if (lowerName.includes("linguist")) return pathIdMap["linguistico"];
-    if (lowerName.includes("scienze umane")) return pathIdMap["scienze umane"];
-    if (lowerName.includes("artist")) return pathIdMap["artistico"];
+    if (lowerName.includes("scienze umane")) return pathIdMap["scienze umane"]; // Covered above but keep
+    if (lowerName.includes("artist")) return pathIdMap["artistico"]; // Covered above but keep
     if (lowerName.includes("music")) return pathIdMap["musicale"];
     if (lowerName.includes("tecnolog") || lowerName.includes("tecnic"))
-      return pathIdMap["tecnologico"];
-    if (lowerName.includes("econom")) return pathIdMap["economico"];
-    if (lowerName.includes("albergh")) return pathIdMap["alberghiero"];
-    if (
-      lowerName.includes("industrial") ||
-      lowerName.includes("meccanic") ||
-      lowerName.includes("elettronic")
-    )
-      return pathIdMap["industriale"];
+      return pathIdMap["tecnologico"]; // Covered above but keep
+    if (lowerName.includes("econom")) return pathIdMap["economico"]; // Covered above but keep
+    if (lowerName.includes("albergh")) return pathIdMap["alberghiero"]; // Covered above but keep
+    if (lowerName.includes("industrial")) return pathIdMap["industriale"]; // Covered above but keep
 
-    // If no match, try to create a new path
-    console.log(`No matching educational path found for: ${pathName}`);
+    // If still no match, log warning and return null
+    console.warn(
+      `No matching educational path found for: ${pathName}. Returning null.`,
+    );
     return null;
   };
 
@@ -920,128 +942,185 @@ export async function seed(knex) {
     },
   ];
 
-  // Transaction to ensure atomicity of operations
+  console.log(`Processing ${schoolsData.length} school entries...`);
+  // Transaction to ensure atomicity
   await knex.transaction(async (trx) => {
-    // Insert schools
+    console.log("Starting transaction...");
+
     for (const schoolData of schoolsData) {
+      console.log(
+        `Processing school: ${schoolData.name} (${schoolData.miur_code})`,
+      );
       const { emails, phones, educational_paths, events, ...schoolMainData } =
         schoolData;
+
+      // Resolve parent school ID if applicable
+      let parentSchoolId = null;
       if (schoolMainData.parent_school) {
+        // parent_school initially holds MIUR code string
+        console.log(
+          `  Looking up parent school with MIUR code: ${schoolMainData.parent_school}`,
+        );
         const [parentSchool] = await trx("schools")
           .select("id")
           .where("miur_code", schoolMainData.parent_school)
           .limit(1);
 
         if (parentSchool) {
-          schoolMainData.parent_school = parentSchool.id;
+          parentSchoolId = parentSchool.id; // Store the UUID
+          console.log(`  Found parent school ID: ${parentSchoolId}`);
         } else {
-          // Handle the case where parent school isn't found
-          schoolMainData.parent_school = null;
+          console.warn(
+            `  Parent school with MIUR code ${schoolMainData.parent_school} not found! Setting parent to null.`,
+          );
         }
       }
 
-      // Insert or update the school
-      const [schoolId] = await trx("schools")
-        .insert({
-          name: schoolMainData.name,
-          miur_code: schoolMainData.miur_code,
-          type: schoolMainData.type,
-          website_url: schoolMainData.website_url,
-          description: schoolMainData.description,
-          address: schoolMainData.address,
-          geo_location: JSON.stringify(schoolMainData.geo_location),
-          responsabile_orientamento: schoolMainData.responsabile_orientamento,
-          main_campus: schoolMainData.main_campus,
-          canteen: schoolMainData.canteen,
-          boarding: schoolMainData.boarding,
-          parent_school: schoolMainData.parent_school, // This will now be the UUID
-        })
+      // Prepare data for insert/merge, ensuring type is set
+      const schoolRecord = {
+        name: schoolMainData.name,
+        miur_code: schoolMainData.miur_code,
+        type: schoolMainData.type, // Already resolved using typeIdMap
+        website_url: schoolMainData.website_url,
+        description: schoolMainData.description,
+        address: schoolMainData.address,
+        // Stringify JSON explicitly for safety, although Knex usually handles it
+        geo_location: schoolMainData.geo_location
+          ? JSON.stringify(schoolMainData.geo_location)
+          : null,
+        responsabile_orientamento: schoolMainData.responsabile_orientamento,
+        main_campus: schoolMainData.main_campus,
+        canteen: schoolMainData.canteen,
+        boarding: schoolMainData.boarding,
+        parent_school: parentSchoolId, // Use the resolved UUID or null
+      };
+
+      // Ensure type is not undefined or null if it's required by schema (adjust if needed)
+      if (!schoolRecord.type) {
+        console.warn(
+          `  School type mapping failed for ${schoolRecord.name}. Check typeIdMap and schoolData.`,
+        );
+        // Decide action: skip school, use default, or throw error?
+        // Let's skip related inserts but log a warning for now.
+        // continue; // Or throw new Error(...)
+      }
+
+      // Insert or update the school and get the actual ID string
+      console.log(`  Inserting/merging school record...`);
+      const returnData = await trx("schools")
+        .insert(schoolRecord)
         .onConflict("miur_code")
-        .merge()
-        .returning("id");
+        .merge() // Merge updates existing record based on conflict target
+        .returning("id"); // Ask for the ID back
 
-      // Insert emails
+      // *** CORRECT ID EXTRACTION ***
+      const schoolId = returnData?.[0]?.id; // Safely access the id property from the first element of the returned array
+
+      // Validate the extracted ID
+      if (!schoolId || typeof schoolId !== "string") {
+        console.error(
+          "  Failed to get valid school ID after insert/merge. Return data:",
+          JSON.stringify(returnData),
+        );
+        // Rollback transaction by throwing error
+        throw new Error(
+          `Failed to get valid school ID for school: ${schoolData.name}`,
+        );
+      }
+      console.log(`  Obtained school ID: ${schoolId}`);
+
+      // --- Process related data using the validated schoolId STRING ---
+
+      // Insert emails (Delete existing first for idempotency)
       if (emails && emails.length > 0) {
+        console.log(`  Processing ${emails.length} emails...`);
+        // Use the STRING schoolId here
         await trx("school_emails").where({ school_id: schoolId }).delete();
-
-        for (const email of emails) {
-          await trx("school_emails").insert({
-            school_id: schoolId,
-            description: email.description,
-            email: email.email,
-          });
-        }
+        const emailInserts = emails.map((email) => ({
+          school_id: schoolId, // Use STRING schoolId
+          description: email.description,
+          email: email.email,
+        }));
+        await trx("school_emails").insert(emailInserts);
       }
 
-      // Insert phones
+      // Insert phones (Delete existing first)
       if (phones && phones.length > 0) {
+        console.log(`  Processing ${phones.length} phones...`);
+        // Use the STRING schoolId here
         await trx("school_phones").where({ school_id: schoolId }).delete();
-
-        for (const phone of phones) {
-          await trx("school_phones").insert({
-            school_id: schoolId,
-            description: phone.description,
-            number: phone.number,
-          });
-        }
+        const phoneInserts = phones.map((phone) => ({
+          school_id: schoolId, // Use STRING schoolId
+          description: phone.description,
+          number: phone.number,
+        }));
+        await trx("school_phones").insert(phoneInserts);
       }
 
       // Process educational paths
       if (educational_paths && educational_paths.length > 0) {
+        console.log(
+          `  Processing ${educational_paths.length} educational paths...`,
+        );
+        // Clear existing links first (optional, depends on desired behavior)
+        // await trx("school_educational_path_links").where({ school_id: schoolId }).delete();
+        // await trx("schools_educational_paths").where({ schools_id: schoolId }).delete();
+
         for (const path of educational_paths) {
-          // Try to find a matching educational path
           let pathId = findEducationalPathId(path.name);
 
-          // If no matching path found, create a new one
-          if (!pathId) {
-            const [newPathId] = await trx("educational_paths")
+          if (pathId) {
+            // Create/Update detailed link
+            await trx("school_educational_path_links")
               .insert({
-                name: path.name,
-                description: `Path for ${schoolMainData.name}`,
+                school_id: schoolId, // Use STRING schoolId
+                educational_path_id: pathId,
+                link_url: path.link || null, // Handle potentially missing link
               })
-              .returning("id");
+              .onConflict(["school_id", "educational_path_id"]) // Assumes unique constraint
+              .merge(); // Update link_url if conflict
 
-            pathId = newPathId;
+            // Create/Ignore junction link
+            await trx("schools_educational_paths")
+              .insert({
+                schools_id: schoolId, // Use STRING schoolId
+                educational_paths_id: pathId,
+              })
+              .onConflict(["schools_id", "educational_paths_id"]) // Assumes unique constraint
+              .ignore(); // Do nothing if link already exists
+          } else {
+            console.warn(
+              `   Skipping path link for '${path.name}' due to missing path ID.`,
+            );
           }
-
-          // Create the link between school and path with URL
-          await trx("school_educational_path_links")
-            .insert({
-              school_id: schoolId,
-              educational_path_id: pathId,
-              link_url: path.link,
-            })
-            .onConflict(["school_id", "educational_path_id"])
-            .merge();
-
-          // Also create the many-to-many relationship in the junction table
-          await trx("schools_educational_paths")
-            .insert({
-              schools_id: schoolId,
-              educational_paths_id: pathId,
-            })
-            .onConflict(["schools_id", "educational_paths_id"])
-            .ignore();
         }
       }
 
-      // Insert events
+      // Insert events (Delete existing first based on MIUR code - assumes events are uniquely tied to MIUR code for a run)
       if (events && events.length > 0) {
-        for (const event of events) {
-          await trx("events").insert({
-            title: event.title,
-            description: event.description,
-            start_date: event.start_date,
-            end_date: event.end_date,
-            location: event.location,
-            is_online: event.is_online,
-            online_link: event.online_link || null,
-            miur_code: event.miur_code,
-          });
-        }
-      }
-    }
-  });
+        console.log(`  Processing ${events.length} events...`);
+        // Delete only events matching this school's miur_code before inserting new ones
+        await trx("events").where({ miur_code: schoolData.miur_code }).delete();
 
-  console.log("✅ Seed completed successfully");
+        const eventInserts = events.map((event) => ({
+          // id: knex.raw('gen_random_uuid()'), // Assuming ID is auto-generated or default in events table
+          title: event.title,
+          description: event.description,
+          start_date: event.start_date, // Ensure these are valid Date objects or ISO strings
+          end_date: event.end_date,
+          location: event.location,
+          is_online: event.is_online || false,
+          online_link: event.online_link || null,
+          miur_code: event.miur_code, // Use the specific MIUR code from the event data
+          // image column might need handling if it refers to directus_files
+        }));
+        await trx("events").insert(eventInserts);
+      }
+      console.log(`  Finished processing school: ${schoolData.name}`);
+    } // End loop through schoolsData
+
+    console.log("Transaction completed.");
+  }); // End transaction
+
+  console.log("✅ Seed completed successfully: 01_import_rovereto_schools");
 }
