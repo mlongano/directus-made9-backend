@@ -1,6 +1,7 @@
 // migrations/20250324L_run_seed_data.js
+import * as rovereto_schools from "../seeds/01_import_rovereto_schools.js";
 
-import { seeds } from "./seeds/index.js";
+export const seeds = [rovereto_schools];
 
 export async function up(knex) {
   // Run each seed
