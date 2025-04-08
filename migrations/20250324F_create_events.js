@@ -34,15 +34,16 @@ export async function up(knex) {
     archive_value: null,
     unarchive_value: null,
     singleton: false,
-    sort_field: null,
+    sort_field: 'start_date',
   });
 
   // Add fields to Directus
+  // Explicitly using JSON.stringify() for options, display_options, special, conditions where they are objects/arrays
   await knex("directus_fields").insert([
     {
       collection: "events",
       field: "id",
-      special: ["uuid"],
+      special: JSON.stringify(["uuid"]), // Stringify array
       interface: "input",
       options: null,
       display: "raw",
@@ -78,9 +79,10 @@ export async function up(knex) {
     {
       collection: "events",
       field: "description",
-      special: null,
-      interface: "input-rich-text-html",
-      options: {
+      special: null, // assuming simple text, adjust if wysiwyg intended
+      interface: "input-rich-text-html", // Assuming Rich Text is desired
+      options: JSON.stringify({
+        // Stringify object
         toolbar: [
           "bold",
           "italic",
@@ -90,8 +92,8 @@ export async function up(knex) {
           "numlist",
           "link",
         ],
-      },
-      display: "formatted-value",
+      }),
+      display: "formatted-value", // Changed from raw
       display_options: null,
       readonly: false,
       hidden: false,
@@ -106,7 +108,8 @@ export async function up(knex) {
     {
       collection: "events",
       field: "start_date",
-      special: ["date-created"],
+      // Removed special: ["date-created"] as this is a user-defined date, not auto-created
+      special: null,
       interface: "datetime",
       options: null,
       display: "datetime",
@@ -153,7 +156,8 @@ export async function up(knex) {
       width: "half",
       translations: null,
       note: "Physical location of the event",
-      conditions: [
+      conditions: JSON.stringify([
+        // Stringify array of objects
         {
           name: "Hide if online",
           rule: {
@@ -164,14 +168,14 @@ export async function up(knex) {
           hidden: true,
           options: {},
         },
-      ],
+      ]),
       required: false,
       group: null,
     },
     {
       collection: "events",
       field: "is_online",
-      special: ["boolean"],
+      special: JSON.stringify(["boolean"]), // Stringify array
       interface: "boolean",
       options: null,
       display: "boolean",
@@ -191,18 +195,21 @@ export async function up(knex) {
       field: "online_link",
       special: null,
       interface: "input",
-      options: {
+      options: JSON.stringify({
+        // Stringify object
         placeholder: "https://example.com/meeting",
-      },
+      }),
       display: "raw",
       display_options: null,
       readonly: false,
-      hidden: false,
+      hidden: false, // Initially show, conditions will hide/show
       sort: 8,
       width: "full",
       translations: null,
       note: "Link to join the online event",
-      conditions: [
+      conditions: JSON.stringify([
+        // Stringify array of objects
+        // Condition to show (redundant maybe, but explicit)
         {
           name: "Show if online",
           rule: {
@@ -213,6 +220,7 @@ export async function up(knex) {
           hidden: false,
           options: {},
         },
+        // Condition to hide
         {
           name: "Hide if not online",
           rule: {
@@ -223,22 +231,24 @@ export async function up(knex) {
           hidden: true,
           options: {},
         },
-      ],
+      ]),
       required: false,
       group: null,
     },
     {
       collection: "events",
       field: "school_id",
-      special: ["m2o"],
+      special: JSON.stringify(["m2o"]), // Stringify array
       interface: "select-dropdown-m2o",
-      options: {
+      options: JSON.stringify({
+        // Stringify object
         template: "{{name}}",
-      },
+      }),
       display: "related-values",
-      display_options: {
+      display_options: JSON.stringify({
+        // Stringify object
         template: "{{name}}",
-      },
+      }),
       readonly: false,
       hidden: false,
       sort: 9,
@@ -246,17 +256,18 @@ export async function up(knex) {
       translations: null,
       note: "School hosting this event",
       conditions: null,
-      required: true,
+      required: true, // Assuming an event must belong to a school
       group: null,
     },
     {
       collection: "events",
       field: "image",
-      special: ["file"],
+      special: JSON.stringify(["file"]), // Stringify array
       interface: "file-image",
-      options: {
+      options: JSON.stringify({
+        // Stringify object
         crop: false,
-      },
+      }),
       display: "image",
       display_options: null,
       readonly: false,
@@ -272,11 +283,11 @@ export async function up(knex) {
     {
       collection: "events",
       field: "created_at",
-      special: ["date-created"],
+      special: JSON.stringify(["date-created"]), // Stringify array
       interface: "datetime",
       options: null,
       display: "datetime",
-      display_options: { relative: true },
+      display_options: JSON.stringify({ relative: true }), // Stringify object
       readonly: true,
       hidden: true,
       sort: 11,
@@ -290,11 +301,11 @@ export async function up(knex) {
     {
       collection: "events",
       field: "updated_at",
-      special: ["date-updated"],
+      special: JSON.stringify(["date-updated"]), // Stringify array
       interface: "datetime",
       options: null,
       display: "datetime",
-      display_options: { relative: true },
+      display_options: JSON.stringify({ relative: true }), // Stringify object
       readonly: true,
       hidden: true,
       sort: 12,
@@ -308,32 +319,44 @@ export async function up(knex) {
     {
       collection: "events",
       field: "user_created",
-      special: ["user-created"],
+      special: JSON.stringify(["user-created"]), // Stringify array
       interface: "select-dropdown-m2o",
-      options: {
+      options: JSON.stringify({
+        // Stringify object
         template: "{{avatar.$thumbnail}} {{first_name}} {{last_name}}",
-      },
+      }),
       display: "user",
+      display_options: null,
       readonly: true,
       hidden: true,
       sort: 13,
       width: "half",
       required: false,
+      group: null,
+      translations: null,
+      note: null,
+      conditions: null,
     },
     {
       collection: "events",
       field: "user_updated",
-      special: ["user-updated"],
+      special: JSON.stringify(["user-updated"]), // Stringify array
       interface: "select-dropdown-m2o",
-      options: {
+      options: JSON.stringify({
+        // Stringify object
         template: "{{avatar.$thumbnail}} {{first_name}} {{last_name}}",
-      },
+      }),
       display: "user",
+      display_options: null,
       readonly: true,
       hidden: true,
       sort: 14,
       width: "half",
       required: false,
+      group: null,
+      translations: null,
+      note: null,
+      conditions: null,
     },
   ]);
 
@@ -342,27 +365,34 @@ export async function up(knex) {
     many_collection: "events",
     many_field: "school_id",
     one_collection: "schools",
-    one_field: null,
+    one_field: "events", // Define the reverse relation field name on schools
+    // junction_field: null, // Not needed for o2m/m2o
+    // one_allowed_collections: null, // Not needed
   });
 
-  // Add the events field to schools
+  // Add the events field to schools (O2M relation)
+  // Ensure this sort value doesn't conflict with others in schools
   await knex("directus_fields").insert({
     collection: "schools",
     field: "events",
-    special: ["o2m"],
+    special: JSON.stringify(["o2m"]), // Stringify array
     interface: "list-o2m",
-    options: {
+    options: JSON.stringify({
+      // Stringify object
       template: "{{title}} ({{start_date}})",
       enableCreate: true,
       enableSelect: true,
-    },
+      // Add sort field if you want events sorted within the school view
+      // sortField: "start_date"
+    }),
     display: "related-values",
-    display_options: {
+    display_options: JSON.stringify({
+      // Stringify object
       template: "{{title}} ({{start_date}})",
-    },
+    }),
     readonly: false,
     hidden: false,
-    sort: 21,
+    sort: 21, // Ensure this sort order is logical within the schools collection fields
     width: "full",
     translations: null,
     note: "Events hosted by this school",
@@ -372,8 +402,9 @@ export async function up(knex) {
   });
 }
 
+// The down function remains the same as the original file
 export async function down(knex) {
-  // Remove the relation from schools
+  // Remove the relation field from schools first
   await knex("directus_fields")
     .where({
       collection: "schools",
@@ -381,20 +412,22 @@ export async function down(knex) {
     })
     .delete();
 
-  // Remove the relation
+  // Remove the relation metadata
   await knex("directus_relations")
     .where({
       many_collection: "events",
       many_field: "school_id",
+      one_collection: "schools",
+      one_field: "events", // Match the one_field defined in 'up'
     })
     .delete();
 
-  // Remove the fields from Directus
+  // Remove the fields for the 'events' collection
   await knex("directus_fields").where("collection", "events").delete();
 
-  // Remove the collection from Directus
+  // Remove the 'events' collection metadata
   await knex("directus_collections").where("collection", "events").delete();
 
-  // Drop the table
+  // Drop the actual 'events' table
   await knex.schema.dropTableIfExists("events");
 }
