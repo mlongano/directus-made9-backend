@@ -179,5 +179,3 @@ services:
    ```
 
 5. **Docker Environment**: When using Docker, make sure the container has access to the appropriate package.json files.
-
-By following these steps, you can use modern ES Modules syntax for your Directus migrations and seeds, making your code cleaner and more maintainable.
