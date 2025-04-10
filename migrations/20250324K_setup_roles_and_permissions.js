@@ -109,9 +109,63 @@ export async function up(knex) {
     throw error;
   }
 
+  // --- ADDED: Grant Full Permissions to Administrator Role ---
+  const permissionsData = [];
+  console.log("Fetching Administrator role ID...");
+  const adminRole = await knex("directus_roles")
+    .select("id")
+    .where({ admin_access: true }) // Usually the safest way to find the Admin role
+    .first();
+
+  if (!adminRole) {
+    console.warn(
+      "Could not find the Administrator role. Skipping permission grant for Administrator.",
+    );
+  } else {
+    const adminRoleId = adminRole.id;
+    console.log(`Found Administrator role ID: ${adminRoleId}`);
+
+    const collectionsToGrantAdminAccess = [
+      "school_types",
+      "educational_paths",
+      "schools",
+      "schools_educational_paths",
+      "videos",
+      "events",
+      "transport_routes",
+      "school_admins",
+      "site_settings",
+      "school_emails",
+      "school_phones",
+      "school_educational_path_links",
+      // Add any other custom collections here
+    ];
+
+    console.log(
+      `Adding full ('manage') permissions for Administrator role (${adminRoleId}) to ${collectionsToGrantAdminAccess.length} collections...`,
+    );
+
+    collectionsToGrantAdminAccess.forEach((collection) => {
+      permissionsData.push({
+        role: adminRoleId, // Assign directly to the Admin role
+        collection: collection,
+        action: "manage", // 'manage' grants full CRUD
+        fields: "*",
+        permissions: JSON.stringify({}), // Empty object means no item-specific restrictions
+        validation: JSON.stringify({}), // Empty object means no validation rules
+        presets: null,
+        // NOTE: We are assigning directly to the role, not a policy here.
+        // If your Directus version requires permissions tied ONLY to policies,
+        // you would need to find the Admin role's associated policy ID instead
+        // and assign the permission to that policyId.
+        // However, assigning to the role directly is common for the built-in Admin role.
+      });
+    });
+  }
+  // --- END ADDED SECTION ---
+
   // --- 4. Create Permissions linked ONLY to the new Policy ---
   console.log("Preparing permissions for policy:", policyId);
-  const permissionsData = [];
 
   // Define collections this role should interact with
   // Ensure these names match your actual collection names
