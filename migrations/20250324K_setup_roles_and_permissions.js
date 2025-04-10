@@ -17,8 +17,8 @@ export async function up(knex) {
     name: "School Administrator",
     icon: "school",
     description: "Role for school admins to manage their school data",
-    admin_access: false, // Ensure this role does NOT have admin access
-    app_access: true, // Allow login to the app
+    // admin_access: false, // Ensure this role does NOT have admin access
+    // app_access: true, // Allow login to the app
   };
   let roleId;
   try {
