@@ -190,39 +190,43 @@ export async function up(knex) {
     },
   ]);
 
-
   // Add the reverse O2M field 'school_admins' to the 'schools' collection fields
-  await knex("directus_fields").insert({
-    collection: "schools", // Target the schools collection
-    field: "school_admins", // Name of the new O2M field
-    special: JSON.stringify(["o2m"]), // Specify it's an O2M relationship
-    interface: "list-o2m", // Standard interface for O2M
-    options: JSON.stringify({
-      template: "{{directus_user_id.email}}",
-    }),
-    display: "related-values",
-    display_options: JSON.stringify({
-      template: "{{directus_user_id.email}}",
-    }),
-    readonly: false,
-    hidden: false,
-    sort: 26,
-    width: "full",
-    translations: null,
-    note: "Administrators linked to this school",
-    conditions: null,
-    required: false,
-    group: null,
-  }).onConflict(['collection', 'field']).ignore(); // Add onConflict().ignore() for safety
+  console.log("Checking if field 'school_admins' exists in collection 'schools'...");
+  const fieldExists = await knex("directus_fields")
+    .where({
+      collection: "schools",
+      field: "school_admins",
+    })
+    .first();
 
-  // REMOVE the entire block from line 223 to 293:
-  /*
-  // Update the 'directus_relations' entries to include the reverse field info
-  // Find the existing M2O relation from school_admins to schools
-  const relationToUpdate = await knex("directus_relations")
-      // ... entire if/else block ...
+  if (!fieldExists) {
+    console.log("Field 'school_admins' does not exist. Inserting...");
+    await knex("directus_fields").insert({
+      collection: "schools", // Target the schools collection
+      field: "school_admins", // Name of the new O2M field
+      special: JSON.stringify(["o2m"]), // Specify it's an O2M relationship
+      interface: "list-o2m", // Standard interface for O2M
+      options: JSON.stringify({
+        template: "{{directus_user_id.email}}",
+      }),
+      display: "related-values",
+      display_options: JSON.stringify({
+        template: "{{directus_user_id.email}}",
+      }),
+      readonly: false,
+      hidden: false,
+      sort: 26,
+      width: "full",
+      translations: null,
+      note: "Administrators linked to this school",
+      conditions: null,
+      required: false,
+      group: null,
+    });
+    console.log("Inserted field 'school_admins' into 'schools'.");
+  } else {
+    console.log("Field 'school_admins' already exists in collection 'schools'. Skipping insertion.");
   }
-  */
 
   // ADD this block to insert/merge relations in their final state:
   console.log("Ensuring directus_relations are correctly configured...");
