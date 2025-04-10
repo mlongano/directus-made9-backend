@@ -1,37 +1,54 @@
 // migrations/20250324J_setup_roles_and_permissions.js
 
+/**
+ * @param { import("knex").Knex } knex
+ * @returns { Promise<void> }
+ */
 export async function up(knex) {
   console.log(
-    "Starting migration: Setup School Administrator role, policy, permissions (using correct directus_access schema)...",
+    "Starting migration: Setup School Administrator role, policy, permissions...",
   );
 
-  // 1. Create the Role
+  // --- 1. Create the Role ---
   const roleInsert = {
+    // Use knex.fn.uuid() for standard UUID generation if your DB supports it
+    // Otherwise, keep knex.raw("gen_random_uuid()") for PostgreSQL
     id: knex.raw("gen_random_uuid()"),
     name: "School Administrator",
     icon: "school",
     description: "Role for school admins to manage their school data",
+    admin_access: false, // Ensure this role does NOT have admin access
+    app_access: true, // Allow login to the app
   };
-  const insertedRole = await knex("directus_roles")
-    .insert(roleInsert)
-    .returning("id");
-  const roleId =
-    insertedRole?.[0]?.id ??
-    (
-      await knex("directus_roles")
-        .select("id")
-        .where("name", roleInsert.name)
-        .first()
-    )?.id;
-
-  if (!roleId) {
+  let roleId;
+  try {
+    // Check if role already exists
+    const existingRole = await knex("directus_roles")
+      .select("id")
+      .where("name", roleInsert.name)
+      .first();
+    if (existingRole) {
+      roleId = existingRole.id;
+      console.log(
+        `Role '${roleInsert.name}' already exists with ID: ${roleId}. Skipping creation.`,
+      );
+    } else {
+      const insertedRole = await knex("directus_roles")
+        .insert(roleInsert)
+        .returning("id");
+      // Handle potential differences in returning format between DBs
+      roleId = insertedRole?.[0]?.id || insertedRole?.[0];
+      if (!roleId) throw new Error("Role creation did not return an ID.");
+      console.log(`Created role '${roleInsert.name}' with ID: ${roleId}`);
+    }
+  } catch (error) {
+    console.error("Error creating/finding role:", error);
     throw new Error(
-      "Failed to create or retrieve the School Administrator role ID.",
+      `Failed to create or retrieve the School Administrator role: ${error.message}`,
     );
   }
-  console.log(`Created role 'School Administrator' with ID: ${roleId}`);
 
-  // 2. Create the Policy
+  // --- 2. Create the Policy ---
   const policyInsert = {
     id: knex.raw("gen_random_uuid()"),
     name: "School Administrator Policy",
@@ -39,625 +56,266 @@ export async function up(knex) {
     description:
       "Policy granting app access and specific permissions for School Administrators",
     enforce_tfa: false,
-    admin_access: false,
-    app_access: true,
+    admin_access: false, // Policy should not grant admin access
+    app_access: true, // Policy should grant app access
     ip_access: null,
   };
-  const insertedPolicy = await knex("directus_policies")
-    .insert(policyInsert)
-    .returning("id");
-  const policyId =
-    insertedPolicy?.[0]?.id ??
-    (
-      await knex("directus_policies")
-        .select("id")
-        .where("name", policyInsert.name)
-        .first()
-    )?.id;
-
-  if (!policyId) {
-    await knex("directus_roles").where("id", roleId).delete(); // Clean up role
+  let policyId;
+  try {
+    // Check if policy already exists
+    const existingPolicy = await knex("directus_policies")
+      .select("id")
+      .where("name", policyInsert.name)
+      .first();
+    if (existingPolicy) {
+      policyId = existingPolicy.id;
+      console.log(
+        `Policy '${policyInsert.name}' already exists with ID: ${policyId}. Skipping creation.`,
+      );
+    } else {
+      const insertedPolicy = await knex("directus_policies")
+        .insert(policyInsert)
+        .returning("id");
+      policyId = insertedPolicy?.[0]?.id || insertedPolicy?.[0];
+      if (!policyId) throw new Error("Policy creation did not return an ID.");
+      console.log(
+        `Created policy '${policyInsert.name}' with ID: ${policyId}`,
+      );
+    }
+  } catch (error) {
+    console.error("Error creating/finding policy:", error);
+    // Clean up role if policy creation failed
+    await knex("directus_roles").where("id", roleId).delete();
     throw new Error(
-      "Failed to create or retrieve the School Administrator policy ID.",
+      `Failed to create or retrieve the School Administrator policy: ${error.message}`,
     );
   }
-  console.log(
-    `Created policy 'School Administrator Policy' with ID: ${policyId}`,
-  );
 
-  // 3. Link Policy to Role via 'directus_access' junction table (using confirmed schema)
-  const junctionTableName = "directus_access";
-  const policyColumn = "policy"; // Use confirmed column name
-  const roleColumn = "role"; // Use confirmed column name
-  const userColumn = "user"; // Use confirmed column name
-
-  const junctionInsertData = {
-    id: knex.raw("gen_random_uuid()"),
-    [policyColumn]: policyId,
-    [roleColumn]: roleId,
-    [userColumn]: null,
-  };
-
+  // --- 3. Link Policy to Role ---
+  // Directus > 10.8 uses directus_roles.policy field
+  // Older versions might use a junction table like directus_access (check your schema)
   try {
-    await knex(junctionTableName).insert(junctionInsertData);
-    console.log(
-      `Linked policy ${policyId} to role ${roleId} via ${junctionTableName}`,
-    );
-  } catch (junctionError) {
-    console.error(
-      `ERROR inserting into junction table '${junctionTableName}': ${junctionError.message}`,
-    );
+    // Assuming directus_roles.policy field exists (Directus >= 10.8)
+    await knex("directus_roles")
+      .where("id", roleId)
+      .update({ policy: policyId });
+    console.log(`Linked policy ${policyId} to role ${roleId}`);
+  } catch (error) {
+    console.error(`ERROR linking policy to role: ${error.message}`);
+    // Clean up policy and role
     await knex("directus_policies").where("id", policyId).delete();
     await knex("directus_roles").where("id", roleId).delete();
-    throw junctionError;
+    throw error;
   }
 
-  // 4. Create Permissions linked to the Policy
-  console.log("Fetching collections to apply default read permissions...");
-  const collections = await knex("directus_collections")
-    .select("collection")
-    .where("collection", "not like", "directus_%")
-    .andWhere("hidden", false)
-    .andWhere("singleton", false);
-
+  // --- 4. Create Permissions linked ONLY to the new Policy ---
+  console.log("Preparing permissions for policy:", policyId);
   const permissionsData = [];
 
-  // Default Read Permissions
-  collections.forEach(({ collection }) => {
+  // Define collections this role should interact with
+  // Ensure these names match your actual collection names
+  const managedCollections = [
+    "schools",
+    "school_emails",
+    "school_phones",
+    "school_educational_path_links",
+    "schools_educational_paths", // The M2M junction table
+    "videos",
+    "events", // Note: Events schema changed in K, rules need care
+    "transport_routes",
+    "school_admins", // For reading own assignments
+    "directus_files", // For uploads/reads
+    "educational_paths", // Need read access to link paths
+    "school_types", // Need read access for school type field
+    // Add other collections if needed (e.g., directus_users for user fields?)
+  ];
+
+  // --- Default Read Permissions for necessary related collections ---
+  const readCollections = [
+    "educational_paths",
+    "school_types",
+    "directus_users", // If needed for user_created/updated fields display
+  ];
+  readCollections.forEach((collection) => {
     permissionsData.push({
       policy: policyId,
-      collection,
+      collection: collection,
       action: "read",
-      fields: "*",
-      permissions: JSON.stringify({}),
+      fields: "*", // Or specify needed fields like ['id', 'name', 'email']
+      permissions: JSON.stringify({}), // No specific item permissions needed for read
       validation: JSON.stringify({}),
       presets: null,
     });
   });
-  console.log(
-    `Prepared default read permissions for ${collections.length} collections.`,
-  );
 
-  // Define specific permission overrides
-  console.log("Defining specific permission overrides...");
+  // --- Specific Permissions ---
+
+  // Helper for standard school-linked permissions
+  const schoolAdminPermission = JSON.stringify({
+    _and: [
+      {
+        school_admins: {
+          _some: { directus_user_id: { _eq: "$CURRENT_USER" } },
+        },
+      },
+    ],
+  });
+  // Helper for permissions based on school_id field in the item
+  const schoolIdPermission = (schoolIdField = "school_id") =>
+    JSON.stringify({
+      _and: [
+        {
+          [schoolIdField]: {
+            school_admins: {
+              _some: { directus_user_id: { _eq: "$CURRENT_USER" } },
+            },
+          },
+        },
+      ],
+    });
+
   // -- Schools Collection --
   permissionsData.push({
     policy: policyId,
     collection: "schools",
+    action: "read", // Allow reading all schools? Or add permission rule?
+    fields: "*",
+    permissions: JSON.stringify({}), // Allow reading all schools for simplicity
+    validation: JSON.stringify({}),
+    presets: null,
+  });
+  permissionsData.push({
+    policy: policyId,
+    collection: "schools",
     action: "update",
+    // Define specific fields allowed for update
     fields: JSON.stringify([
-      // Ensure fields list is correct JSON array string
       "name",
       "website_url",
       "description",
       "detailed_info",
       "address",
       "geo_location",
-      "email",
-      "phone",
+      "email", // Consider if school admins should update base email/phone
+      "phone", // or if these should be via school_emails/school_phones
       "logo",
       "canteen",
       "boarding",
-      "miur_code",
-      "responsabile_orientamento",
+      "miur_code", // Added in K
+      "responsabile_orientamento", // Added in K
       "parent_school",
       "type",
+      // Add other fields school admins can update
     ]),
-    permissions: JSON.stringify({
-      _and: [
-        {
-          school_admins: {
-            _some: { directus_user_id: { _eq: "$CURRENT_USER" } },
-          },
-        },
-      ],
-    }), // Added missing parenthesis
-    validation: JSON.stringify({
-      _and: [
-        {
-          school_admins: {
-            _some: { directus_user_id: { _eq: "$CURRENT_USER" } },
-          },
-        },
-      ],
-    }), // Added missing parenthesis
+    permissions: schoolAdminPermission, // Can update schools they are linked to
+    validation: schoolAdminPermission, // Validation uses same rule
     presets: null,
   });
-  // -- Videos Collection --
-  permissionsData.push({
-    policy: policyId,
-    collection: "videos",
-    action: "create",
-    fields: "*",
-    permissions: JSON.stringify({
-      _and: [
-        {
-          school_id: {
-            school_admins: {
-              _some: { directus_user_id: { _eq: "$CURRENT_USER" } },
-            },
-          },
-        },
-      ],
-    }),
-    validation: JSON.stringify({
-      _and: [
-        {
-          school_id: {
-            school_admins: {
-              _some: { directus_user_id: { _eq: "$CURRENT_USER" } },
-            },
-          },
-        },
-      ],
-    }),
-    presets: null,
-  }); // Added missing parenthesis x2
-  permissionsData.push({
-    policy: policyId,
-    collection: "videos",
-    action: "update",
-    fields: "*",
-    permissions: JSON.stringify({
-      _and: [
-        {
-          school_id: {
-            school_admins: {
-              _some: { directus_user_id: { _eq: "$CURRENT_USER" } },
-            },
-          },
-        },
-      ],
-    }),
-    validation: JSON.stringify({
-      _and: [
-        {
-          school_id: {
-            school_admins: {
-              _some: { directus_user_id: { _eq: "$CURRENT_USER" } },
-            },
-          },
-        },
-      ],
-    }),
-    presets: null,
-  }); // Added missing parenthesis x2
-  permissionsData.push({
-    policy: policyId,
-    collection: "videos",
-    action: "delete",
-    fields: null,
-    permissions: JSON.stringify({
-      _and: [
-        {
-          school_id: {
-            school_admins: {
-              _some: { directus_user_id: { _eq: "$CURRENT_USER" } },
-            },
-          },
-        },
-      ],
-    }),
-    validation: null,
-    presets: null,
-  }); // Added missing parenthesis x1
-  // -- Events Collection -- (Adapt permissions rule based on actual schema link)
-  // ATTENTION: Ensure the JSON.stringify calls here also have closing parentheses if you add rules
-  permissionsData.push({
-    policy: policyId,
-    collection: "events",
-    action: "create",
-    fields: "*",
-    permissions: JSON.stringify({
-      /* Add rule */
-    }),
-    validation: JSON.stringify({
-      /* Add rule */
-    }),
-    presets: null,
+  // Note: No 'create' or 'delete' for schools for this role assumed
+
+  // -- School Emails, Phones, Path Links (Similar CRUD based on school_id) --
+  ["school_emails", "school_phones", "school_educational_path_links"].forEach(
+    (collection) => {
+      ["create", "update"].forEach((action) => {
+        permissionsData.push({
+          policy: policyId,
+          collection: collection,
+          action: action,
+          fields: "*", // Allow managing all fields
+          permissions: schoolIdPermission(), // Check school_id link
+          validation: schoolIdPermission(), // Check school_id link
+          presets:
+            action === "create"
+              ? JSON.stringify({
+                  // Pre-fill school_id if possible? Requires context.
+                  // school_id: "$CURRENT_USER.school_id" // This syntax is illustrative, might not work directly
+                })
+              : null,
+        });
+      });
+      permissionsData.push({
+        policy: policyId,
+        collection: collection,
+        action: "delete",
+        fields: null, // No fields needed for delete
+        permissions: schoolIdPermission(), // Check school_id link
+        validation: JSON.stringify({}), // No validation needed for delete usually
+        presets: null,
+      });
+    },
+  );
+
+  // -- Videos, Transport Routes (Similar CRUD based on school_id) --
+  ["videos", "transport_routes"].forEach((collection) => {
+    ["create", "update"].forEach((action) => {
+      permissionsData.push({
+        policy: policyId,
+        collection: collection,
+        action: action,
+        fields: "*",
+        permissions: schoolIdPermission(),
+        validation: schoolIdPermission(),
+        presets: null,
+      });
+    });
+    permissionsData.push({
+      policy: policyId,
+      collection: collection,
+      action: "delete",
+      fields: null,
+      permissions: schoolIdPermission(),
+      validation: JSON.stringify({}),
+      presets: null,
+    });
   });
-  permissionsData.push({
-    policy: policyId,
-    collection: "events",
-    action: "update",
-    fields: "*",
-    permissions: JSON.stringify({
-      /* Add rule */
-    }),
-    validation: JSON.stringify({
-      /* Add rule */
-    }),
-    presets: null,
-  });
-  permissionsData.push({
-    policy: policyId,
-    collection: "events",
-    action: "delete",
-    fields: null,
-    permissions: JSON.stringify({
-      /* Add rule */
-    }),
-    validation: null,
-    presets: null,
-  });
-  // -- Transport Routes Collection --
-  permissionsData.push({
-    policy: policyId,
-    collection: "transport_routes",
-    action: "create",
-    fields: "*",
-    permissions: JSON.stringify({
-      _and: [
-        {
-          school_id: {
-            school_admins: {
-              _some: { directus_user_id: { _eq: "$CURRENT_USER" } },
-            },
-          },
-        },
-      ],
-    }),
-    validation: JSON.stringify({
-      _and: [
-        {
-          school_id: {
-            school_admins: {
-              _some: { directus_user_id: { _eq: "$CURRENT_USER" } },
-            },
-          },
-        },
-      ],
-    }),
-    presets: null,
-  }); // Added missing parenthesis x2
-  permissionsData.push({
-    policy: policyId,
-    collection: "transport_routes",
-    action: "update",
-    fields: "*",
-    permissions: JSON.stringify({
-      _and: [
-        {
-          school_id: {
-            school_admins: {
-              _some: { directus_user_id: { _eq: "$CURRENT_USER" } },
-            },
-          },
-        },
-      ],
-    }),
-    validation: JSON.stringify({
-      _and: [
-        {
-          school_id: {
-            school_admins: {
-              _some: { directus_user_id: { _eq: "$CURRENT_USER" } },
-            },
-          },
-        },
-      ],
-    }),
-    presets: null,
-  }); // Added missing parenthesis x2
-  permissionsData.push({
-    policy: policyId,
-    collection: "transport_routes",
-    action: "delete",
-    fields: null,
-    permissions: JSON.stringify({
-      _and: [
-        {
-          school_id: {
-            school_admins: {
-              _some: { directus_user_id: { _eq: "$CURRENT_USER" } },
-            },
-          },
-        },
-      ],
-    }),
-    validation: null,
-    presets: null,
-  }); // Added missing parenthesis x1
-  // -- School Admins Collection -- (Optional read)
+
+  // -- Events Collection -- (Schema changed in K - school_id removed)
+  // **Option 1: Grant full access to Events linked via MIUR code (Complex)**
+  // Requires custom permission logic checking miur_code against schools the user manages.
+  // **Option 2: Grant access to ALL events (Simpler, maybe too broad)**
+  // **Option 3: Omit event permissions from migration (Safest for now)**
+  // Let's choose Option 3 for now to avoid complexity/errors. Configure manually.
+  console.log(
+    "Skipping specific permissions for 'events' collection in migration. Configure manually if needed.",
+  );
+
+  // -- School Admins Collection -- (Allow reading own assignments)
   permissionsData.push({
     policy: policyId,
     collection: "school_admins",
     action: "read",
-    fields: "*",
-    permissions: JSON.stringify({ directus_user_id: { _eq: "$CURRENT_USER" } }),
-    validation: null,
-    presets: null,
-  }); // Added missing parenthesis x1
-  // -- School <-> Educational Path Links ('school_educational_path_links') --
-  permissionsData.push({
-    policy: policyId,
-    collection: "school_educational_path_links",
-    action: "create",
-    fields: "*",
+    fields: "*", // Or specify ['id', 'school_id', 'directus_user_id']
     permissions: JSON.stringify({
-      _and: [
-        {
-          school_id: {
-            school_admins: {
-              _some: { directus_user_id: { _eq: "$CURRENT_USER" } },
-            },
-          },
-        },
-      ],
+      directus_user_id: { _eq: "$CURRENT_USER" },
     }),
-    validation: JSON.stringify({
-      _and: [
-        {
-          school_id: {
-            school_admins: {
-              _some: { directus_user_id: { _eq: "$CURRENT_USER" } },
-            },
-          },
-        },
-      ],
-    }),
+    validation: JSON.stringify({}),
     presets: null,
-  }); // Added missing parenthesis x2
-  permissionsData.push({
-    policy: policyId,
-    collection: "school_educational_path_links",
-    action: "update",
-    fields: "*",
-    permissions: JSON.stringify({
-      _and: [
-        {
-          school_id: {
-            school_admins: {
-              _some: { directus_user_id: { _eq: "$CURRENT_USER" } },
-            },
-          },
-        },
-      ],
-    }),
-    validation: JSON.stringify({
-      _and: [
-        {
-          school_id: {
-            school_admins: {
-              _some: { directus_user_id: { _eq: "$CURRENT_USER" } },
-            },
-          },
-        },
-      ],
-    }),
-    presets: null,
-  }); // Added missing parenthesis x2
-  permissionsData.push({
-    policy: policyId,
-    collection: "school_educational_path_links",
-    action: "delete",
-    fields: null,
-    permissions: JSON.stringify({
-      _and: [
-        {
-          school_id: {
-            school_admins: {
-              _some: { directus_user_id: { _eq: "$CURRENT_USER" } },
-            },
-          },
-        },
-      ],
-    }),
-    validation: null,
-    presets: null,
-  }); // Added missing parenthesis x1
-  // -- School <-> Educational Path Junction ('schools_educational_paths') --
-  permissionsData.push({
-    policy: policyId,
-    collection: "schools_educational_paths",
-    action: "create",
-    fields: "*",
-    permissions: JSON.stringify({
-      _and: [
-        {
-          schools_id: {
-            school_admins: {
-              _some: { directus_user_id: { _eq: "$CURRENT_USER" } },
-            },
-          },
-        },
-      ],
-    }),
-    validation: JSON.stringify({
-      _and: [
-        {
-          schools_id: {
-            school_admins: {
-              _some: { directus_user_id: { _eq: "$CURRENT_USER" } },
-            },
-          },
-        },
-      ],
-    }),
-    presets: null,
-  }); // Added missing parenthesis x2
-  permissionsData.push({
-    policy: policyId,
-    collection: "schools_educational_paths",
-    action: "delete",
-    fields: null,
-    permissions: JSON.stringify({
-      _and: [
-        {
-          schools_id: {
-            school_admins: {
-              _some: { directus_user_id: { _eq: "$CURRENT_USER" } },
-            },
-          },
-        },
-      ],
-    }),
-    validation: null,
-    presets: null,
-  }); // Added missing parenthesis x1
-  // -- School Emails --
-  permissionsData.push({
-    policy: policyId,
-    collection: "school_emails",
-    action: "create",
-    fields: "*",
-    permissions: JSON.stringify({
-      _and: [
-        {
-          school_id: {
-            school_admins: {
-              _some: { directus_user_id: { _eq: "$CURRENT_USER" } },
-            },
-          },
-        },
-      ],
-    }),
-    validation: JSON.stringify({
-      _and: [
-        {
-          school_id: {
-            school_admins: {
-              _some: { directus_user_id: { _eq: "$CURRENT_USER" } },
-            },
-          },
-        },
-      ],
-    }),
-    presets: null,
-  }); // Added missing parenthesis x2
-  permissionsData.push({
-    policy: policyId,
-    collection: "school_emails",
-    action: "update",
-    fields: "*",
-    permissions: JSON.stringify({
-      _and: [
-        {
-          school_id: {
-            school_admins: {
-              _some: { directus_user_id: { _eq: "$CURRENT_USER" } },
-            },
-          },
-        },
-      ],
-    }),
-    validation: JSON.stringify({
-      _and: [
-        {
-          school_id: {
-            school_admins: {
-              _some: { directus_user_id: { _eq: "$CURRENT_USER" } },
-            },
-          },
-        },
-      ],
-    }),
-    presets: null,
-  }); // Added missing parenthesis x2
-  permissionsData.push({
-    policy: policyId,
-    collection: "school_emails",
-    action: "delete",
-    fields: null,
-    permissions: JSON.stringify({
-      _and: [
-        {
-          school_id: {
-            school_admins: {
-              _some: { directus_user_id: { _eq: "$CURRENT_USER" } },
-            },
-          },
-        },
-      ],
-    }),
-    validation: null,
-    presets: null,
-  }); // Added missing parenthesis x1
-  // -- School Phones --
-  permissionsData.push({
-    policy: policyId,
-    collection: "school_phones",
-    action: "create",
-    fields: "*",
-    permissions: JSON.stringify({
-      _and: [
-        {
-          school_id: {
-            school_admins: {
-              _some: { directus_user_id: { _eq: "$CURRENT_USER" } },
-            },
-          },
-        },
-      ],
-    }),
-    validation: JSON.stringify({
-      _and: [
-        {
-          school_id: {
-            school_admins: {
-              _some: { directus_user_id: { _eq: "$CURRENT_USER" } },
-            },
-          },
-        },
-      ],
-    }),
-    presets: null,
-  }); // Added missing parenthesis x2
-  permissionsData.push({
-    policy: policyId,
-    collection: "school_phones",
-    action: "update",
-    fields: "*",
-    permissions: JSON.stringify({
-      _and: [
-        {
-          school_id: {
-            school_admins: {
-              _some: { directus_user_id: { _eq: "$CURRENT_USER" } },
-            },
-          },
-        },
-      ],
-    }),
-    validation: JSON.stringify({
-      _and: [
-        {
-          school_id: {
-            school_admins: {
-              _some: { directus_user_id: { _eq: "$CURRENT_USER" } },
-            },
-          },
-        },
-      ],
-    }),
-    presets: null,
-  }); // Added missing parenthesis x2
-  permissionsData.push({
-    policy: policyId,
-    collection: "school_phones",
-    action: "delete",
-    fields: null,
-    permissions: JSON.stringify({
-      _and: [
-        {
-          school_id: {
-            school_admins: {
-              _some: { directus_user_id: { _eq: "$CURRENT_USER" } },
-            },
-          },
-        },
-      ],
-    }),
-    validation: null,
-    presets: null,
-  }); // Added missing parenthesis x1
-  // -- Directus Files --
+  });
+  // Note: No CUD for school_admins for this role assumed (managed by Admin)
+
+  // -- Schools <-> Educational Paths (M2M Junction) --
+  // Allow CUD if the linked school_id is managed by the user
+  ["create", "delete"].forEach((action) => {
+    permissionsData.push({
+      policy: policyId,
+      collection: "schools_educational_paths",
+      action: action,
+      fields: "*", // Junction table fields
+      permissions: schoolIdPermission("schools_id"), // Check the schools_id field
+      validation:
+        action === "create" ? schoolIdPermission("schools_id") : JSON.stringify({}),
+      presets: null,
+    });
+  });
+  // Note: Update on junction usually not needed, handled by create/delete
+
+  // -- Directus Files -- (Allow create/read)
   permissionsData.push({
     policy: policyId,
     collection: "directus_files",
     action: "create",
     fields: "*",
-    permissions: JSON.stringify({}),
+    permissions: JSON.stringify({}), // Allow creating any file
     validation: JSON.stringify({}),
     presets: null,
   });
@@ -666,29 +324,35 @@ export async function up(knex) {
     collection: "directus_files",
     action: "read",
     fields: "*",
-    permissions: JSON.stringify({}),
+    permissions: JSON.stringify({}), // Allow reading any file (needed for display)
     validation: JSON.stringify({}),
     presets: null,
   });
+  // Note: No update/delete on files assumed for this role
 
-  // Insert all defined permissions
-  console.log(
-    `Attempting to insert ${permissionsData.length} permission rules...`,
-  );
-  await knex("directus_permissions").insert(
-    permissionsData.map((p) => ({
-      policy: p.policy,
-      action: p.action,
-      collection: p.collection,
-      fields: p.fields === undefined ? null : p.fields,
-      permissions: p.permissions === undefined ? null : p.permissions,
-      validation: p.validation === undefined ? null : p.validation,
-      presets: p.presets === undefined ? null : p.presets,
-    })),
-  );
-  console.log(`Successfully inserted permissions for policy ${policyId}`);
+  // --- Insert all permissions ---
+  if (permissionsData.length > 0) {
+    try {
+      // Use chunking for large number of permissions if necessary
+      await knex("directus_permissions").insert(permissionsData);
+      console.log(
+        `Successfully inserted ${permissionsData.length} permissions for policy ${policyId}`,
+      );
+    } catch (error) {
+      console.error(
+        `ERROR inserting permissions for policy ${policyId}: ${error.message}`,
+      );
+      // Clean up policy and role if permissions fail
+      await knex("directus_roles").where("id", roleId).update({ policy: null }); // Unlink first
+      await knex("directus_policies").where("id", policyId).delete();
+      await knex("directus_roles").where("id", roleId).delete();
+      throw error;
+    }
+  } else {
+    console.log("No permissions defined to insert.");
+  }
 
-  // --- Flow Creation ---
+  // --- 5. Flow Creation --- (Keep as is, assuming it's for Admin use)
   console.log("Setting up flow 'Assign School to Admin'...");
   const flowExists = await knex("directus_flows")
     .select("id")
@@ -696,22 +360,21 @@ export async function up(knex) {
     .first();
   if (!flowExists) {
     await knex("directus_flows").insert({
-      id: knex.raw("gen_random_uuid()"), // <-- ADD EXPLICIT ID GENERATION
-
+      id: knex.raw("gen_random_uuid()"), // Explicit ID generation
       name: "Assign School to Admin",
       icon: "admin_panel_settings",
       color: "#0055ff",
       description:
         "Automatically assigns a school to the user who created it via school_admins junction",
       status: "active",
-      trigger: "event",
+      trigger: "event", // Changed from 'hook' if using event scope
       accountability: "all",
       options: JSON.stringify({
-        type: "hook",
+        // type: "hook", // Remove if trigger is 'event'
         scope: ["items.create"],
-        collections: ["schools"],
+        collections: ["school_admins"], // Trigger when a school_admins link is created
       }),
-      // operation: knex.raw('gen_random_uuid()'),
+      // operation: knex.raw('gen_random_uuid()'), // Link to an operation if needed
     });
     console.log("Created flow 'Assign School to Admin'.");
   } else {
@@ -723,73 +386,81 @@ export async function up(knex) {
   console.log("Migration 20250324J completed successfully.");
 }
 
-// --- Down Function (Unchanged from previous version) ---
+/**
+ * @param { import("knex").Knex } knex
+ * @returns { Promise<void> }
+ */
 export async function down(knex) {
   console.log("Starting rollback for migration 20250324J...");
 
   // 1. Delete the Flow
-  const deletedFlowsCount = await knex("directus_flows")
-    .where("name", "Assign School to Admin")
-    .delete();
-  console.log(
-    `Deleted ${deletedFlowsCount} flow(s) named 'Assign School to Admin'.`,
-  );
+  try {
+    const deletedFlowsCount = await knex("directus_flows")
+      .where("name", "Assign School to Admin")
+      .delete();
+    console.log(
+      `Deleted ${deletedFlowsCount} flow(s) named 'Assign School to Admin'.`,
+    );
+  } catch (error) {
+    console.warn(`Could not delete flow: ${error.message}`);
+  }
 
-  // 2. Find the Policy and Role
+  // 2. Find the Policy and Role (by name, as IDs might change)
   const policy = await knex("directus_policies")
     .select("id")
     .where("name", "School Administrator Policy")
     .first();
-  let policyId = policy?.id;
   const role = await knex("directus_roles")
     .select("id")
     .where("name", "School Administrator")
     .first();
-  let roleId = role?.id;
+  const policyId = policy?.id;
+  const roleId = role?.id;
 
+  // 3. Delete Permissions associated with the Policy
   if (policyId) {
-    console.log(
-      `Found policy 'School Administrator Policy' with ID: ${policyId}`,
-    );
-    // 3. Delete Permissions
-    const deletedPermissionsCount = await knex("directus_permissions")
-      .where("policy", policyId)
-      .delete();
-    console.log(
-      `Deleted ${deletedPermissionsCount} permissions for policy ${policyId}`,
-    );
-    // 4. Delete Policy-Role Link
-    const junctionTableName = "directus_access";
-    const policyColumn = "policy";
-    const roleColumn = "role";
     try {
-      let query = knex(junctionTableName).where(policyColumn, policyId);
-      if (roleId) {
-        query = query.andWhere(roleColumn, roleId);
-      }
-      const deletedLinksCount = await query.delete();
+      const deletedPermissionsCount = await knex("directus_permissions")
+        .where("policy", policyId)
+        .delete();
       console.log(
-        `Deleted ${deletedLinksCount} links in ${junctionTableName} involving policy ${policyId}`,
+        `Deleted ${deletedPermissionsCount} permissions for policy ${policyId}`,
       );
-    } catch (junctionError) {
-      /* ... error handling ... */
+    } catch (error) {
+      console.warn(
+        `Could not delete permissions for policy ${policyId}: ${error.message}`,
+      );
     }
-    // 5. Delete Policy
-    await knex("directus_policies").where("id", policyId).delete();
-    console.log(`Deleted policy ${policyId}`);
   } else {
-    /* ... warning ... */
+    console.log("Policy not found, skipping permission deletion.");
   }
 
-  // 6. Delete Role
-  if (roleId) {
-    if (!policyId) {
-      /* ... fallback junction cleanup ... */
+  // 4. Unlink Policy from Role and Delete Policy
+  if (policyId) {
+    try {
+      // Unlink policy from role (assuming directus_roles.policy field)
+      await knex("directus_roles")
+        .where("policy", policyId)
+        .update({ policy: null });
+      console.log(`Unlinked policy ${policyId} from roles.`);
+      // Delete the policy
+      await knex("directus_policies").where("id", policyId).delete();
+      console.log(`Deleted policy ${policyId}`);
+    } catch (error) {
+      console.warn(`Could not delete policy ${policyId}: ${error.message}`);
     }
-    await knex("directus_roles").where("id", roleId).delete();
-    console.log(`Deleted role 'School Administrator' with ID: ${roleId}`);
+  }
+
+  // 5. Delete Role
+  if (roleId) {
+    try {
+      await knex("directus_roles").where("id", roleId).delete();
+      console.log(`Deleted role ${roleId}`);
+    } catch (error) {
+      console.warn(`Could not delete role ${roleId}: ${error.message}`);
+    }
   } else {
-    /* ... warning ... */
+    console.log("Role not found, skipping role deletion.");
   }
 
   console.log("Rollback for migration 20250324J finished.");
