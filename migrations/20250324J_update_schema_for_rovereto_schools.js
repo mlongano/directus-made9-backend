@@ -7,6 +7,46 @@ export async function up(knex) {
     table.string("responsabile_orientamento").comment("Name of the person in charge of the educational guidance for the school");
   });
 
+  // Register the new fields in Directus
+  await knex("directus_fields").insert([
+    {
+      collection: "schools",
+      field: "miur_code",
+      special: null,
+      interface: "input", // Or appropriate interface like 'input-unique' if needed
+      options: null,
+      display: "raw",
+      display_options: null,
+      readonly: false,
+      hidden: false,
+      sort: 10, // Adjust sort order as needed relative to other school fields
+      width: "half",
+      translations: null,
+      note: "School National ID (Codice Meccanografico)",
+      conditions: null,
+      required: false, // Set to true if it's mandatory
+      group: null,
+    },
+    {
+      collection: "schools",
+      field: "responsabile_orientamento",
+      special: null,
+      interface: "input",
+      options: null,
+      display: "raw",
+      display_options: null,
+      readonly: false,
+      hidden: false,
+      sort: 11, // Adjust sort order as needed
+      width: "half",
+      translations: null,
+      note: "Name of the person in charge of educational guidance",
+      conditions: null,
+      required: false,
+      group: null,
+    },
+  ]);
+
   // 2. Create contacts table for emails
   await knex.schema.createTable("school_emails", (table) => {
     table.uuid("id").primary().defaultTo(knex.raw("gen_random_uuid()"));
