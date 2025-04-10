@@ -3,8 +3,8 @@
 export async function up(knex) {
   // 1. Add MIUR code and orientation manager to schools
   await knex.schema.alterTable("schools", (table) => {
-    table.string("miur_code").unique().after("name");
-    table.string("responsabile_orientamento").after("address");
+    table.string("miur_code").unique().after("name").note("School National ID");
+    table.string("responsabile_orientamento").after("address").note("Name of the person in charge of the educational guidance for the school");
   });
 
   // 2. Create contacts table for emails

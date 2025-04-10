@@ -57,7 +57,7 @@ export async function up(knex) {
       sort: 1,
       width: "full",
       translations: null,
-      note: null,
+      note: "Unique identifier for the school",
       conditions: null,
       required: false,
       group: null,
