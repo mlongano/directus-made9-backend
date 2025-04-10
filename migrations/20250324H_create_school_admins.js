@@ -242,33 +242,65 @@ export async function up(knex) {
       console.log("Updated directus_relations for school_admins -> schools.");
 
       // Ensure the other relation (school_admins -> directus_users) is still correct
-      await knex("directus_relations").insert({
-        many_collection: "school_admins",
-        many_field: "directus_user_id",
-        one_collection: "directus_users",
-        one_field: null, // Assuming no reverse field needed on directus_users
-        junction_field: null, // Not a junction table field
-      }).onConflict(['many_collection', 'many_field']).ignore(); // Avoid inserting if it exists
+      // Check if it exists before inserting
+      const userRelationExists = await knex("directus_relations")
+        .where({
+          many_collection: "school_admins",
+          many_field: "directus_user_id",
+        })
+        .first();
+
+      if (!userRelationExists) {
+        await knex("directus_relations").insert({
+          many_collection: "school_admins",
+          many_field: "directus_user_id",
+          one_collection: "directus_users",
+          one_field: null, // Assuming no reverse field needed on directus_users
+          junction_field: null, // Not a junction table field
+        });
+        console.log("Inserted missing directus_relations for school_admins -> directus_users.");
+      }
 
   } else {
       // If the relation wasn't found (unexpected), insert both correctly
       console.warn("Could not find existing relation school_admins -> schools to update. Inserting new relation entries.");
-      await knex("directus_relations").insert([
-        {
+
+      // Check and insert schools relation
+      const schoolRelationExists = await knex("directus_relations")
+        .where({
+          many_collection: "school_admins",
+          many_field: "school_id",
+        })
+        .first();
+      if (!schoolRelationExists) {
+        await knex("directus_relations").insert({
             many_collection: "school_admins",
             many_field: "school_id",
             one_collection: "schools",
             one_field: "school_admins", // The reverse field on 'schools'
             junction_field: null, // Not a junction table field
-        },
-        {
+        });
+         console.log("Inserted directus_relations for school_admins -> schools.");
+      }
+
+      // Check and insert users relation
+      const userRelationExists = await knex("directus_relations")
+        .where({
+          many_collection: "school_admins",
+          many_field: "directus_user_id",
+        })
+        .first();
+
+       if (!userRelationExists) {
+        await knex("directus_relations").insert({
             many_collection: "school_admins",
             many_field: "directus_user_id",
             one_collection: "directus_users",
             one_field: null, // Assuming no reverse field needed on directus_users
             junction_field: null, // Not a junction table field
-        },
-      ]).onConflict(['many_collection', 'many_field']).ignore(); // Use ignore or merge as appropriate
+        });
+        console.log("Inserted directus_relations for school_admins -> directus_users.");
+      }
   }
 
 }
