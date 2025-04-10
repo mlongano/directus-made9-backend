@@ -456,59 +456,130 @@ export async function up(knex) {
     },
   ]);
 
+  // Register the M2O relationship in Directus
+  await knex("directus_relations").insert({
+    many_collection: "schools", // The collection with the M2O field
+    many_field: "type", // The M2O field itself
+    one_collection: "school_types", // The collection being referenced
+    one_field: "schools", // Optional: Name for the corresponding O2M field on school_types (e.g., 'schools')
+    // junction_field is null for M2O
+    junction_field: null,
+    one_deselect_action: "nullify", // Or 'delete' depending on desired behavior
+    sort_field: null,
+  });
+
   // Pre-populate with the schools from the requirements
-  // This part remains unchanged as it inserts into the 'schools' table, not 'directus_fields'
-  await knex("schools").insert([
+  // --- Pre-population Section ---
+
+  // 1. Fetch the IDs of the school types you need to link to
+  //    Query by a unique, known field like 'name'
+  const schoolTypeNames = [
+    "Liceo",
+    "Istituto Tecnico",
+    "Istituto Professionale",
+    "Scuola Professionale",
+    // Add any other type names you pre-populated and need here
+  ];
+  const schoolTypes = await knex("school_types")
+    .select("id", "name")
+    .whereIn("name", schoolTypeNames);
+
+  // 2. Create a lookup map for easy access (e.g., { "Liceo": "uuid-for-liceo", ... })
+  const typeIdMap = schoolTypes.reduce((map, type) => {
+    map[type.name] = type.id;
+    return map;
+  }, {});
+
+  // 3. Prepare the school data, using the fetched IDs for the 'type' field
+  const schoolsToInsert = [
     {
       name: "Liceo Antonio Rosmini",
       website_url: "https://www.rosmini.tn.it/",
+      // Assign the fetched ID for "Liceo"
+      type: typeIdMap["Liceo"] || null, // Use || null as fallback if type might not exist
     },
     {
       name: 'Liceo delle Scienze Umane "F. Filzi"',
       website_url: "https://www.liceofilzi.it/",
+      type: typeIdMap["Liceo"] || null,
     },
     {
-      name: 'Istituto d\'Istruzione "Don Milani"',
+      name: 'Istituto d\'Istruzione "Don Milani"', // Decide which type this is
       website_url: "https://www.domir.it/",
+      // Example: Assuming it's an Istituto Tecnico
+      type: typeIdMap["Istituto Tecnico"] || null,
     },
     {
       name: 'Istituto Tecnico Tecnologico "G. Marconi"',
       website_url: "https://www.marconirovereto.it/",
+      type: typeIdMap["Istituto Tecnico"] || null,
     },
-    { name: "ITET Fontana", website_url: "https://www.fgfontana.eu/" },
     {
-      name: "Liceo Artistico Depero",
+      // Istituto Tecnico Economico e Tecnologico
+      name: "ITET Fontana",
+      website_url: "https://www.fgfontana.eu/",
+      type: typeIdMap["Istituto Tecnico"] || null,
+    },
+    {
+      name: "Liceo Artistico Depero", // Often considered a type of Liceo
       website_url: "https://www.istitutodellearti.tn.it/",
+      type: typeIdMap["Liceo"] || null,
     },
     {
+      // Centro Formazione Professionale - Map to appropriate type
       name: "CFP Opera Armida Barelli",
       website_url: "https://www.operaarmidabarelli.org/",
+      // Example: Mapping CFP to Scuola Professionale
+      type: typeIdMap["Scuola Professionale"] || null,
     },
     {
       name: "Liceo Internazionale Arcivescovile",
       website_url: "https://www.arcivescoviletrento.it/",
+      type: typeIdMap["Liceo"] || null,
     },
     {
+      // Centro Formazione Professionale - Map to appropriate type
       name: "Polo Giuseppe Veronesi CFP - MADE++",
       website_url: "https://www.cfpgveronesi.it/",
+      type: typeIdMap["Scuola Professionale"] || null,
     },
     {
       name: "Liceo Steam International",
       website_url: "https://www.steaminternational.eu/",
+      type: typeIdMap["Liceo"] || null,
     },
     {
       name: "Istituto di Formazione Professionale Alberghiero",
       website_url: "https://www.alberghierorovereto.it/",
+      type: typeIdMap["Istituto Professionale"] || null,
     },
     {
+      // Centro Formazione Professionale - Map to appropriate type
       name: "C.F.P. U.P.T. - Scuola delle Professioni per il Terziario",
       website_url: "https://www.cfp-upt.it/",
+      type: typeIdMap["Scuola Professionale"] || null,
     },
-  ]);
+    // Add other necessary fields for each school (description, address, etc.)
+    // Make sure the 'type' key corresponds to the correct name in typeIdMap
+  ];
+
+  // 4. Insert the data into the 'schools' table
+  if (schoolsToInsert.length > 0) {
+    await knex("schools").insert(schoolsToInsert);
+  }
+  console.log(`${schoolsToInsert.length} schools inserted successfully.`);
+  // --- End of Pre-population Section ---
 }
 
 // The down function remains the same as the original file
 export async function down(knex) {
+    await knex("directus_relations")
+    .where({
+      many_collection: "schools",
+      many_field: "type",
+    })
+    .delete();
+
   // Remove the fields from Directus
   await knex("directus_fields").where("collection", "schools").delete();
 
