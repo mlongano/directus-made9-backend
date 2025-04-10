@@ -22,14 +22,15 @@ export async function seed(knex) {
 
   // Helper function to find path ID based on name (fuzzy match)
   const findEducationalPathId = (pathName) => {
+    if (!pathName) return null; // Handle null or undefined path names
     const lowerName = pathName.toLowerCase();
 
-    // Direct match first (case-insensitive via pathIdMap keys)
+    // Direct match first
     if (pathIdMap[lowerName]) {
       return pathIdMap[lowerName];
     }
 
-    // Improved Fuzzy Matching based on logged warnings and likely mappings:
+    // Improved Fuzzy Matching (keep your existing logic here)
     // Specific Professional / Service paths
     if (
       lowerName.includes("panificazione") ||
@@ -43,7 +44,7 @@ export async function seed(knex) {
       lowerName.includes("servizi per la sanità") ||
       lowerName.includes("assistenza sociale")
     ) {
-      return pathIdMap["scienze umane"]; // Map to Scienze Umane (or create a 'Servizi Sociali' type?)
+      return pathIdMap["scienze umane"]; // Map to Scienze Umane
     }
     if (
       lowerName.includes("servizi d'impresa") ||
@@ -51,7 +52,6 @@ export async function seed(knex) {
     ) {
       return pathIdMap["economico"]; // Map to Economico
     }
-
     // Art / Design related
     if (
       lowerName.includes("grafica") ||
@@ -61,11 +61,10 @@ export async function seed(knex) {
     ) {
       return pathIdMap["artistico"]; // Map to Artistico
     }
-
     // Technical / Industrial related
     if (
       lowerName.includes("meccatronico") ||
-      lowerName.includes("meccanico") || // <-- ADDED THIS CHECK
+      lowerName.includes("meccanico") ||
       lowerName.includes("meccatronica") ||
       lowerName.includes("elettrico") ||
       lowerName.includes("elettronica") ||
@@ -82,14 +81,14 @@ export async function seed(knex) {
     if (lowerName.includes("classi")) return pathIdMap["classico"];
     if (lowerName.includes("scienti")) return pathIdMap["scientifico"];
     if (lowerName.includes("linguist")) return pathIdMap["linguistico"];
-    if (lowerName.includes("scienze umane")) return pathIdMap["scienze umane"]; // Covered above but keep
-    if (lowerName.includes("artist")) return pathIdMap["artistico"]; // Covered above but keep
+    if (lowerName.includes("scienze umane")) return pathIdMap["scienze umane"];
+    if (lowerName.includes("artist")) return pathIdMap["artistico"];
     if (lowerName.includes("music")) return pathIdMap["musicale"];
     if (lowerName.includes("tecnolog") || lowerName.includes("tecnic"))
-      return pathIdMap["tecnologico"]; // Covered above but keep
-    if (lowerName.includes("econom")) return pathIdMap["economico"]; // Covered above but keep
-    if (lowerName.includes("albergh")) return pathIdMap["alberghiero"]; // Covered above but keep
-    if (lowerName.includes("industrial")) return pathIdMap["industriale"]; // Covered above but keep
+      return pathIdMap["tecnologico"];
+    if (lowerName.includes("econom")) return pathIdMap["economico"];
+    if (lowerName.includes("albergh")) return pathIdMap["alberghiero"];
+    if (lowerName.includes("industrial")) return pathIdMap["industriale"];
 
     // If still no match, log warning and return null
     console.warn(
@@ -156,7 +155,6 @@ export async function seed(knex) {
           end_date: new Date("2024-12-06T17:30:00+01:00"),
           location: "Viale Dei Colli, 17 - Rovereto",
           is_online: false,
-          miur_code: "TNCF011001",
         },
         {
           title: "Open Day",
@@ -166,8 +164,7 @@ export async function seed(knex) {
           end_date: new Date("2024-12-14T13:00:00+01:00"),
           location: "Viale Dei Colli, 17 - Rovereto",
           is_online: false,
-          miur_code: "TNCF011001",
-        },
+                  },
       ],
     },
 
@@ -216,7 +213,6 @@ export async function seed(knex) {
           end_date: new Date("2024-11-23T18:00:00+01:00"),
           location: "Corso Bettini, 71 - Rovereto",
           is_online: false,
-          miur_code: "TN1M00200X",
         },
         {
           title: "LIA DAY - Scuola Aperta",
@@ -226,8 +222,7 @@ export async function seed(knex) {
           end_date: new Date("2024-12-14T18:00:00+01:00"),
           location: "Corso Bettini, 71 - Rovereto",
           is_online: false,
-          miur_code: "TN1M00200X",
-        },
+                  },
         {
           title: "LIA DAY - Scuola Aperta",
           description:
@@ -236,8 +231,7 @@ export async function seed(knex) {
           end_date: new Date("2025-01-11T18:00:00+01:00"),
           location: "Corso Bettini, 71 - Rovereto",
           is_online: false,
-          miur_code: "TN1M00200X",
-        },
+                  },
       ],
     },
 
@@ -282,7 +276,6 @@ export async function seed(knex) {
           end_date: new Date("2024-12-07T15:00:00+01:00"),
           location: "Via Setaioli, 5 - Rovereto",
           is_online: false,
-          miur_code: "TNCF005001",
         },
         {
           title: "Open Day",
@@ -292,8 +285,7 @@ export async function seed(knex) {
           end_date: new Date("2024-12-07T16:00:00+01:00"),
           location: "Via Setaioli, 5 - Rovereto",
           is_online: false,
-          miur_code: "TNCF005001",
-        },
+                  },
         {
           title: "Open Day",
           description:
@@ -302,8 +294,7 @@ export async function seed(knex) {
           end_date: new Date("2025-01-18T15:00:00+01:00"),
           location: "Via Setaioli, 5 - Rovereto",
           is_online: false,
-          miur_code: "TNCF005001",
-        },
+                  },
       ],
     },
 
@@ -358,7 +349,6 @@ export async function seed(knex) {
           end_date: new Date("2024-11-16T12:30:00+01:00"),
           location: "Via Balista, 2 - Rovereto",
           is_online: false,
-          miur_code: "TNSD020011",
         },
         {
           title: "Open Day",
@@ -368,7 +358,6 @@ export async function seed(knex) {
           end_date: new Date("2024-12-07T12:30:00+01:00"),
           location: "Via Balista, 2 - Rovereto",
           is_online: false,
-          miur_code: "TNSD020011",
         },
       ],
     },
@@ -422,8 +411,7 @@ export async function seed(knex) {
           end_date: new Date("2024-11-23T12:30:00+01:00"),
           location: "Via Balista, 6 - Rovereto",
           is_online: false,
-          miur_code: "TNIS009009",
-        },
+                  },
         {
           title: "Open Day",
           description:
@@ -432,8 +420,7 @@ export async function seed(knex) {
           end_date: new Date("2024-12-05T20:00:00+01:00"),
           location: "Via Balista, 6 - Rovereto",
           is_online: false,
-          miur_code: "TNIS009009",
-        },
+                  },
       ],
     },
 
@@ -485,8 +472,7 @@ export async function seed(knex) {
           end_date: new Date("2024-11-15T20:30:00+01:00"),
           location: "Corso Rosmini, 61 - Rovereto",
           is_online: false,
-          miur_code: "TNPM02000E",
-        },
+                  },
         {
           title: "Pomeriggio al Filzi",
           description:
@@ -495,8 +481,7 @@ export async function seed(knex) {
           end_date: new Date("2024-11-21T17:00:00+01:00"),
           location: "Corso Rosmini, 61 - Rovereto",
           is_online: false,
-          miur_code: "TNPM02000E",
-        },
+                  },
       ],
     },
 
@@ -561,8 +546,7 @@ export async function seed(knex) {
           end_date: new Date("2024-11-20T21:00:00+01:00"),
           location: "Via Del Teatro, 4 - Rovereto",
           is_online: false,
-          miur_code: "TNTD020009",
-        },
+                  },
         {
           title: "Open Day",
           description:
@@ -571,8 +555,7 @@ export async function seed(knex) {
           end_date: new Date("2024-12-14T11:30:00+01:00"),
           location: "Via Del Teatro, 4 - Rovereto",
           is_online: false,
-          miur_code: "TNTD020009",
-        },
+                  },
       ],
     },
 
@@ -629,8 +612,7 @@ export async function seed(knex) {
           end_date: new Date("2024-11-15T19:30:00+01:00"),
           location: "Via Monti, 1 - Rovereto",
           is_online: false,
-          miur_code: "TNTF02000G",
-        },
+                  },
         {
           title: "Open Day",
           description:
@@ -639,8 +621,7 @@ export async function seed(knex) {
           end_date: new Date("2024-12-07T17:00:00+01:00"),
           location: "Via Monti, 1 - Rovereto",
           is_online: false,
-          miur_code: "TNTF02000G",
-        },
+                  },
       ],
     },
 
@@ -708,8 +689,7 @@ export async function seed(knex) {
           end_date: new Date("2024-11-16T17:30:00+01:00"),
           location: "Corso Bettini, 86 - Rovereto",
           is_online: false,
-          miur_code: "TNPC02000A",
-        },
+                  },
         {
           title: "Una serata al Liceo Rosmini",
           description:
@@ -718,8 +698,7 @@ export async function seed(knex) {
           end_date: new Date("2024-11-29T22:00:00+01:00"),
           location: "Corso Bettini, 86 - Rovereto",
           is_online: false,
-          miur_code: "TNPC02000A",
-        },
+                  },
       ],
     },
 
@@ -761,8 +740,7 @@ export async function seed(knex) {
           end_date: new Date("2024-12-07T12:30:00+01:00"),
           location: "Via Pasqui, 10 - Rovereto",
           is_online: false,
-          miur_code: "TNFP000001",
-        },
+                  },
         {
           title: "Open Day",
           description: "Open day e laboratori esperienziali, in presenza",
@@ -770,8 +748,7 @@ export async function seed(knex) {
           end_date: new Date("2025-01-18T12:30:00+01:00"),
           location: "Via Pasqui, 10 - Rovereto",
           is_online: false,
-          miur_code: "TNFP000001",
-        },
+                  },
       ],
     },
 
@@ -825,8 +802,7 @@ export async function seed(knex) {
           end_date: new Date("2024-11-22T20:00:00+01:00"),
           location: "Piazzale Orsi, 1 - Rovereto",
           is_online: false,
-          miur_code: "TNCF002001",
-        },
+                  },
         {
           title: "Open Day",
           description:
@@ -835,8 +811,7 @@ export async function seed(knex) {
           end_date: new Date("2024-12-14T18:00:00+01:00"),
           location: "Piazzale Orsi, 1 - Rovereto",
           is_online: false,
-          miur_code: "TNCF002001",
-        },
+                  },
       ],
     },
 
@@ -878,8 +853,7 @@ export async function seed(knex) {
           end_date: new Date("2024-11-23T18:00:00+01:00"),
           location: "Via Fortunato Zeni, 8 - Rovereto",
           is_online: false,
-          miur_code: "TNCF002001-B",
-        },
+                  },
         {
           title: "Open Day",
           description:
@@ -888,8 +862,7 @@ export async function seed(knex) {
           end_date: new Date("2024-12-14T18:00:00+01:00"),
           location: "Via Fortunato Zeni, 8 - Rovereto",
           is_online: false,
-          miur_code: "TNCF002001-B",
-        },
+                  },
       ],
     },
 
@@ -927,8 +900,7 @@ export async function seed(knex) {
           end_date: new Date("2024-11-08T20:00:00+01:00"),
           location: "Via Madonna del Monte, 6 - Rovereto",
           is_online: false,
-          miur_code: "TNPSID500S",
-        },
+                  },
         {
           title: "Open Day",
           description: "Presso lo STEAM Campus, via Madonna del Monte 6",
@@ -936,13 +908,13 @@ export async function seed(knex) {
           end_date: new Date("2024-11-23T17:30:00+01:00"),
           location: "Via Madonna del Monte, 6 - Rovereto",
           is_online: false,
-          miur_code: "TNPSID500S",
-        },
+                  },
       ],
     },
   ];
 
   console.log(`Processing ${schoolsData.length} school entries...`);
+
   // Transaction to ensure atomicity
   await knex.transaction(async (trx) => {
     console.log("Starting transaction...");
@@ -957,26 +929,26 @@ export async function seed(knex) {
       // Resolve parent school ID if applicable
       let parentSchoolId = null;
       if (schoolMainData.parent_school) {
-        // parent_school initially holds MIUR code string
         console.log(
-          `  Looking up parent school with MIUR code: ${schoolMainData.parent_school}`,
+          ` Looking up parent school with MIUR code: ${schoolMainData.parent_school}`,
         );
-        const [parentSchool] = await trx("schools")
+        // Use trx for transaction context
+        const parentSchool = await trx("schools")
           .select("id")
           .where("miur_code", schoolMainData.parent_school)
-          .limit(1);
+          .first(); // Use first() instead of limit(1) for clarity
 
         if (parentSchool) {
-          parentSchoolId = parentSchool.id; // Store the UUID
-          console.log(`  Found parent school ID: ${parentSchoolId}`);
+          parentSchoolId = parentSchool.id;
+          console.log(` Found parent school ID: ${parentSchoolId}`);
         } else {
           console.warn(
-            `  Parent school with MIUR code ${schoolMainData.parent_school} not found! Setting parent to null.`,
+            ` Parent school with MIUR code ${schoolMainData.parent_school} not found!`,
           );
         }
       }
 
-      // Prepare data for insert/merge, ensuring type is set
+      // Prepare data for insert/merge
       const schoolRecord = {
         name: schoolMainData.name,
         miur_code: schoolMainData.miur_code,
@@ -984,75 +956,72 @@ export async function seed(knex) {
         website_url: schoolMainData.website_url,
         description: schoolMainData.description,
         address: schoolMainData.address,
-        // Stringify JSON explicitly for safety, although Knex usually handles it
         geo_location: schoolMainData.geo_location
-          ? JSON.stringify(schoolMainData.geo_location)
+          ? JSON.stringify(schoolMainData.geo_location) // Stringify JSON
           : null,
         responsabile_orientamento: schoolMainData.responsabile_orientamento,
         main_campus: schoolMainData.main_campus,
         canteen: schoolMainData.canteen,
         boarding: schoolMainData.boarding,
         parent_school: parentSchoolId, // Use the resolved UUID or null
+        // Add other direct fields from schoolMainData if necessary
       };
 
-      // Ensure type is not undefined or null if it's required by schema (adjust if needed)
+      // Ensure type is valid if required
       if (!schoolRecord.type) {
         console.warn(
-          `  School type mapping failed for ${schoolRecord.name}. Check typeIdMap and schoolData.`,
+          ` School type mapping failed for ${schoolRecord.name}. Skipping related inserts for this school. Check typeIdMap and input data.`,
         );
-        // Decide action: skip school, use default, or throw error?
-        // Let's skip related inserts but log a warning for now.
-        // continue; // Or throw new Error(...)
+        continue; // Skip processing related data for this school
       }
 
       // Insert or update the school and get the actual ID string
-      console.log(`  Inserting/merging school record...`);
+      console.log(` Inserting/merging school record...`);
       const returnData = await trx("schools")
         .insert(schoolRecord)
-        .onConflict("miur_code")
-        .merge() // Merge updates existing record based on conflict target
-        .returning("id"); // Ask for the ID back
+        .onConflict("miur_code") // Assumes miur_code is unique constraint
+        .merge()
+        .returning("id");
 
-      // *** CORRECT ID EXTRACTION ***
-      const schoolId = returnData?.[0]?.id; // Safely access the id property from the first element of the returned array
+      // Safely extract the ID
+      const schoolId = returnData?.[0]?.id || returnData?.[0];
 
       // Validate the extracted ID
       if (!schoolId || typeof schoolId !== "string") {
         console.error(
-          "  Failed to get valid school ID after insert/merge. Return data:",
+          " Failed to get valid school ID after insert/merge. Return data:",
           JSON.stringify(returnData),
         );
-        // Rollback transaction by throwing error
         throw new Error(
           `Failed to get valid school ID for school: ${schoolData.name}`,
         );
       }
-      console.log(`  Obtained school ID: ${schoolId}`);
+      console.log(` Obtained school ID: ${schoolId}`);
 
       // --- Process related data using the validated schoolId STRING ---
 
       // Insert emails (Delete existing first for idempotency)
       if (emails && emails.length > 0) {
-        console.log(`  Processing ${emails.length} emails...`);
-        // Use the STRING schoolId here
+        console.log(` Processing ${emails.length} emails...`);
         await trx("school_emails").where({ school_id: schoolId }).delete();
         const emailInserts = emails.map((email) => ({
-          school_id: schoolId, // Use STRING schoolId
+          school_id: schoolId,
           description: email.description,
           email: email.email,
+          // Add sort or other fields if needed
         }));
         await trx("school_emails").insert(emailInserts);
       }
 
       // Insert phones (Delete existing first)
       if (phones && phones.length > 0) {
-        console.log(`  Processing ${phones.length} phones...`);
-        // Use the STRING schoolId here
+        console.log(` Processing ${phones.length} phones...`);
         await trx("school_phones").where({ school_id: schoolId }).delete();
         const phoneInserts = phones.map((phone) => ({
-          school_id: schoolId, // Use STRING schoolId
+          school_id: schoolId,
           description: phone.description,
           number: phone.number,
+          // Add sort or other fields if needed
         }));
         await trx("school_phones").insert(phoneInserts);
       }
@@ -1060,9 +1029,9 @@ export async function seed(knex) {
       // Process educational paths
       if (educational_paths && educational_paths.length > 0) {
         console.log(
-          `  Processing ${educational_paths.length} educational paths...`,
+          ` Processing ${educational_paths.length} educational paths...`,
         );
-        // Clear existing links first (optional, depends on desired behavior)
+        // Optional: Clear existing links first if you want the seed to be the absolute source of truth
         // await trx("school_educational_path_links").where({ school_id: schoolId }).delete();
         // await trx("schools_educational_paths").where({ schools_id: schoolId }).delete();
 
@@ -1070,53 +1039,58 @@ export async function seed(knex) {
           let pathId = findEducationalPathId(path.name);
 
           if (pathId) {
-            // Create/Update detailed link
+            // 1. Create/Update detailed link in 'school_educational_path_links' (Migration K table)
+            // This stores the link_url and sort order.
             await trx("school_educational_path_links")
               .insert({
-                school_id: schoolId, // Use STRING schoolId
+                school_id: schoolId,
                 educational_path_id: pathId,
-                link_url: path.link || null, // Handle potentially missing link
+                link_url: path.link || null,
+                // Add sort if needed: sort: path.sort || 0,
               })
               .onConflict(["school_id", "educational_path_id"]) // Assumes unique constraint
               .merge(); // Update link_url if conflict
 
-            // Create/Ignore junction link
+            // 2. Create/Ignore junction link in 'schools_educational_paths' (Migration D table)
+            // This populates the standard M2M relationship.
             await trx("schools_educational_paths")
               .insert({
-                schools_id: schoolId, // Use STRING schoolId
+                schools_id: schoolId,
                 educational_paths_id: pathId,
               })
               .onConflict(["schools_id", "educational_paths_id"]) // Assumes unique constraint
               .ignore(); // Do nothing if link already exists
           } else {
             console.warn(
-              `   Skipping path link for '${path.name}' due to missing path ID.`,
+              ` Skipping path link for '${path.name}' due to missing path ID.`,
             );
           }
         }
       }
 
-      // Insert events (Delete existing first based on MIUR code - assumes events are uniquely tied to MIUR code for a run)
+      // Insert events (Delete existing first based on SCHOOL ID now)
       if (events && events.length > 0) {
-        console.log(`  Processing ${events.length} events...`);
-        // Delete only events matching this school's miur_code before inserting new ones
-        await trx("events").where({ miur_code: schoolData.miur_code }).delete();
+        console.log(` Processing ${events.length} events...`);
+        // Delete only events matching this school's ID before inserting new ones
+        await trx("events").where({ school_id: schoolId }).delete(); // <-- CHANGE HERE
 
         const eventInserts = events.map((event) => ({
-          // id: knex.raw('gen_random_uuid()'), // Assuming ID is auto-generated or default in events table
+          // id: knex.raw('gen_random_uuid()'), // Let DB handle ID generation
           title: event.title,
           description: event.description,
           start_date: event.start_date, // Ensure these are valid Date objects or ISO strings
-          end_date: event.end_date,
+          end_date: event.end_date || null, // Handle optional end_date
           location: event.location,
           is_online: event.is_online || false,
           online_link: event.online_link || null,
-          miur_code: event.miur_code, // Use the specific MIUR code from the event data
+          school_id: schoolId, // <-- ADDED THIS FIELD
+          // miur_code: event.miur_code, // <-- REMOVED THIS FIELD
           // image column might need handling if it refers to directus_files
         }));
         await trx("events").insert(eventInserts);
       }
-      console.log(`  Finished processing school: ${schoolData.name}`);
+
+      console.log(` Finished processing school: ${schoolData.name}`);
     } // End loop through schoolsData
 
     console.log("Transaction completed.");
