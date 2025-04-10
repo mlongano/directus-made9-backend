@@ -109,21 +109,22 @@ export async function up(knex) {
     throw error;
   }
 
-  // --- ADDED: Grant Full Permissions to Administrator Role ---
   const permissionsData = [];
-  console.log("Fetching Administrator role ID...");
-  const adminRole = await knex("directus_roles")
+  // --- ADDED: Grant Full Permissions to Administrator Policy ---
+  console.log("Fetching Administrator policy ID...");
+  // Find the policy associated with administrative access
+  const adminPolicy = await knex("directus_policies")
     .select("id")
-    .where({ admin_access: true }) // Usually the safest way to find the Admin role
+    .where({ admin_access: true }) // Query directus_policies for admin_access
     .first();
 
-  if (!adminRole) {
+  if (!adminPolicy) {
     console.warn(
-      "Could not find the Administrator role. Skipping permission grant for Administrator.",
+      "Could not find the Administrator policy. Skipping permission grant for Administrator.",
     );
   } else {
-    const adminRoleId = adminRole.id;
-    console.log(`Found Administrator role ID: ${adminRoleId}`);
+    const adminPolicyId = adminPolicy.id; // This is the ID we need
+    console.log(`Found Administrator policy ID: ${adminPolicyId}`);
 
     const collectionsToGrantAdminAccess = [
       "school_types",
@@ -138,29 +139,39 @@ export async function up(knex) {
       "school_emails",
       "school_phones",
       "school_educational_path_links",
-      // Add any other custom collections here
+      // Add any other custom collections here that the admin should manage
     ];
 
     console.log(
-      `Adding full ('manage') permissions for Administrator role (${adminRoleId}) to ${collectionsToGrantAdminAccess.length} collections...`,
+      `Adding full ('manage') permissions for Administrator policy (${adminPolicyId}) to ${collectionsToGrantAdminAccess.length} collections...`,
     );
 
     collectionsToGrantAdminAccess.forEach((collection) => {
-      permissionsData.push({
-        role: adminRoleId, // Assign directly to the Admin role
-        collection: collection,
-        action: "manage", // 'manage' grants full CRUD
-        fields: "*",
-        permissions: JSON.stringify({}), // Empty object means no item-specific restrictions
-        validation: JSON.stringify({}), // Empty object means no validation rules
-        presets: null,
-        // NOTE: We are assigning directly to the role, not a policy here.
-        // If your Directus version requires permissions tied ONLY to policies,
-        // you would need to find the Admin role's associated policy ID instead
-        // and assign the permission to that policyId.
-        // However, assigning to the role directly is common for the built-in Admin role.
-      });
+      // Check if a permission for this collection and action already exists for this policy
+      // (This is a basic check; more robust logic might be needed if multiple permissions could apply)
+      const existingPermissionIndex = permissionsData.findIndex(p =>
+        p.policy === adminPolicyId && p.collection === collection && p.action === 'manage'
+      );
+
+      // Only add if it doesn't exist already in our array for this policy
+      if (existingPermissionIndex === -1) {
+          permissionsData.push({
+            policy: adminPolicyId, // Assign to the Administrator's POLICY ID
+            collection: collection,
+            action: "manage", // 'manage' grants full CRUD
+            fields: "*",
+            permissions: JSON.stringify({}), // Empty object = no item restrictions
+            validation: JSON.stringify({}), // Empty object = no validation rules
+            presets: null,
+            // Role field is no longer used here in the new schema
+          });
+       } else {
+         console.log(`  Skipping duplicate admin permission for ${collection}.`);
+       }
     });
+     console.log(
+      `Finished adding permissions for Administrator policy. Total permissions count: ${permissionsData.length}`,
+    );
   }
   // --- END ADDED SECTION ---
 
