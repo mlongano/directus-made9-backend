@@ -91,15 +91,16 @@ export async function up(knex) {
     );
   }
 
-  // --- 3. Link Policy to Role ---
-  // Directus > 10.8 uses directus_roles.policy field
-  // Older versions might use a junction table like directus_access (check your schema)
+  // --- 3. Link Policy to Role using directus_access ---
   try {
-    // Assuming directus_roles.policy field exists (Directus >= 10.8)
-    await knex("directus_roles")
-      .where("id", roleId)
-      .update({ policy: policyId });
-    console.log(`Linked policy ${policyId} to role ${roleId}`);
+    await knex("directus_access").insert({
+      id: knex.raw("gen_random_uuid()"),
+      role: roleId,
+      user: null,
+      policy: policyId,
+      sort: 1, // Or any appropriate sort value
+    });
+    console.log(`Linked policy ${policyId} to role ${roleId} in directus_access`);
   } catch (error) {
     console.error(`ERROR linking policy to role: ${error.message}`);
     // Clean up policy and role
@@ -451,19 +452,17 @@ export async function down(knex) {
     console.log("Policy not found, skipping permission deletion.");
   }
 
-  // 4. Unlink Policy from Role and Delete Policy
-  if (policyId) {
+  // 4. Delete the directus_access entry linking the role and policy
+  if (roleId) {
     try {
-      // Unlink policy from role (assuming directus_roles.policy field)
-      await knex("directus_roles")
-        .where("policy", policyId)
-        .update({ policy: null });
-      console.log(`Unlinked policy ${policyId} from roles.`);
-      // Delete the policy
-      await knex("directus_policies").where("id", policyId).delete();
-      console.log(`Deleted policy ${policyId}`);
+      await knex("directus_access")
+        .where({ role: roleId })
+        .delete();
+      console.log(`Deleted directus_access entry for role ${roleId}`);
     } catch (error) {
-      console.warn(`Could not delete policy ${policyId}: ${error.message}`);
+      console.warn(
+        `Could not delete directus_access entry for role ${roleId}: ${error.message}`,
+      );
     }
   }
 
