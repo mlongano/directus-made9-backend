@@ -189,9 +189,113 @@ export async function up(knex) {
       one_field: null,
     },
   ]);
+
+
+  // Add the reverse O2M field 'school_admins' to the 'schools' collection fields
+  await knex("directus_fields").insert({
+    collection: "schools", // Target the schools collection
+    field: "school_admins", // Name of the new O2M field
+    special: JSON.stringify(["o2m"]), // Specify it's an O2M relationship
+    interface: "list-o2m", // Standard interface for O2M
+    options: JSON.stringify({
+      // Optional: Customize how the related items are displayed
+      template: "{{directus_user_id.email}}",
+      // Optional: Add filters, enable creation/selection from the schools item page
+      // filter: { status: { _eq: 'active' } },
+      // enableCreate: false,
+      // enableSelect: true,
+    }),
+    display: "related-values",
+    display_options: JSON.stringify({
+      // Optional: Customize display in list views
+      template: "{{directus_user_id.email}}",
+    }),
+    readonly: false,
+    hidden: false, // Make it visible in the UI if desired
+    sort: 26, // Choose an appropriate sort order relative to other fields in 'schools'
+    width: "full",
+    translations: null,
+    note: "Administrators linked to this school",
+    conditions: null,
+    required: false,
+    group: null,
+  });
+
+  // Update the 'directus_relations' entries to include the reverse field info
+  // Find the existing M2O relation from school_admins to schools
+  const relationToUpdate = await knex("directus_relations")
+      .where({
+          many_collection: "school_admins",
+          many_field: "school_id",
+          one_collection: "schools",
+          // one_field was null previously
+      })
+      .first();
+
+  if (relationToUpdate) {
+      // Update the existing relation to specify the 'one_field'
+      await knex("directus_relations")
+          .where({ id: relationToUpdate.id }) // Use the specific ID if possible, otherwise the query above
+          .update({
+              one_field: "school_admins", // Set the name of the O2M field on the 'schools' side
+          });
+      console.log("Updated directus_relations for school_admins -> schools.");
+
+      // Ensure the other relation (school_admins -> directus_users) is still correct
+      await knex("directus_relations").insert({
+        many_collection: "school_admins",
+        many_field: "directus_user_id",
+        one_collection: "directus_users",
+        one_field: null, // Assuming no reverse field needed on directus_users
+        junction_field: null, // Not a junction table field
+      }).onConflict(['many_collection', 'many_field']).ignore(); // Avoid inserting if it exists
+
+  } else {
+      // If the relation wasn't found (unexpected), insert both correctly
+      console.warn("Could not find existing relation school_admins -> schools to update. Inserting new relation entries.");
+      await knex("directus_relations").insert([
+        {
+            many_collection: "school_admins",
+            many_field: "school_id",
+            one_collection: "schools",
+            one_field: "school_admins", // The reverse field on 'schools'
+            junction_field: null, // Not a junction table field
+        },
+        {
+            many_collection: "school_admins",
+            many_field: "directus_user_id",
+            one_collection: "directus_users",
+            one_field: null, // Assuming no reverse field needed on directus_users
+            junction_field: null, // Not a junction table field
+        },
+      ]).onConflict(['many_collection', 'many_field']).ignore(); // Use ignore or merge as appropriate
+  }
+
 }
 
+
 export async function down(knex) {
+  // Remove the reverse O2M field from 'schools' collection
+  await knex("directus_fields")
+    .where({
+      collection: "schools",
+      field: "school_admins",
+    })
+    .delete();
+
+  // Revert the 'directus_relations' update if needed (set one_field back to null or delete/re-insert)
+  // Safest might be to ensure the relation exists with one_field as null
+   await knex("directus_relations")
+          .where({
+              many_collection: "school_admins",
+              many_field: "school_id",
+              one_collection: "schools",
+          })
+          .update({
+              one_field: null, // Set it back to null
+          });
+
+
   // Remove the relations
   await knex("directus_relations")
     .where({
