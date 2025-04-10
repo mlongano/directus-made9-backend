@@ -269,14 +269,30 @@ export async function up(knex) {
     });
   });
 
-  // -- Events Collection -- (Schema changed in K - school_id removed)
-  // **Option 1: Grant full access to Events linked via MIUR code (Complex)**
-  // Requires custom permission logic checking miur_code against schools the user manages.
-  // **Option 2: Grant access to ALL events (Simpler, maybe too broad)**
-  // **Option 3: Omit event permissions from migration (Safest for now)**
-  // Let's choose Option 3 for now to avoid complexity/errors. Configure manually.
+// -- Events Collection -- (using school_id)
+console.log("Adding permissions for 'events' collection...");
+["create", "update"].forEach((action) => {
+  permissionsData.push({
+    policy: policyId,
+    collection: "events",
+    action: action,
+    fields: "*", // Or specify allowed fields
+    permissions: schoolIdPermission(), // Use standard check on events.school_id
+    validation: schoolIdPermission(), // Use standard check on events.school_id
+    presets: null, // Add presets if needed for create
+  });
+});
+permissionsData.push({
+  policy: policyId,
+  collection: "events",
+  action: "delete",
+  fields: null,
+  permissions: schoolIdPermission(), // Use standard check on events.school_id
+  validation: JSON.stringify({}),
+  presets: null,
+});
   console.log(
-    "Skipping specific permissions for 'events' collection in migration. Configure manually if needed.",
+    "Setting permissions for 'events' collection",
   );
 
   // -- School Admins Collection -- (Allow reading own assignments)

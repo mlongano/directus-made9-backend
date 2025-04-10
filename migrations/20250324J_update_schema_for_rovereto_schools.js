@@ -65,11 +65,7 @@ export async function up(knex) {
     table.unique(["school_id", "educational_path_id"]);
   });
 
-  // 5. Update events table to link to specific campus/branch using MIUR code
-  await knex.schema.alterTable("events", (table) => {
-    table.string("miur_code").after("id");
-    table.dropColumn("school_id"); // Remove the original foreign key as we'll link by MIUR code
-  });
+  5. // Was Add MIUR code to events
 
   // 6. Register new collections in Directus
   await knex("directus_collections").insert([
@@ -716,12 +712,6 @@ export async function down(knex) {
   await knex.schema.dropTableIfExists("school_emails");
   await knex.schema.dropTableIfExists("school_phones");
   await knex.schema.dropTableIfExists("school_educational_path_links");
-
-  // Restore original events schema
-  await knex.schema.alterTable("events", (table) => {
-    table.uuid("school_id").references("id").inTable("schools");
-    table.dropColumn("miur_code");
-  });
 
   // Remove the added fields from schools
   await knex.schema.alterTable("schools", (table) => {
